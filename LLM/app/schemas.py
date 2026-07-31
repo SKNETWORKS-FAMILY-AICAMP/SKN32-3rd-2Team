@@ -41,8 +41,15 @@ class Source(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    chatroom_id: str = Field(..., description="chatroom.chatroom_id (UUID)")
     message: str = Field(..., min_length=1, description="사용자 질문")
+    chatroom_id: str | None = Field(
+        None,
+        description=(
+            "선택. chatroom.chatroom_id (UUID). 답변 생성에는 쓰이지 않고 "
+            "서버 로그에만 남는다. 특정 대화에서 문제가 생겼을 때 로그를 "
+            "추려내기 위한 값이라 보내주면 디버깅이 쉬워진다."
+        ),
+    )
     history: list[HistoryTurn] = Field(
         default_factory=list,
         description=(

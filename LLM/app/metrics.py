@@ -64,7 +64,7 @@ def record(event: str, **fields: Any) -> None:
 def record_chat(
     event: str,
     *,
-    chatroom_id: str,
+    chatroom_id: str | None,
     topic: str,
     rag_degraded: bool,
     source_count: int,
@@ -80,7 +80,7 @@ def record_chat(
     logger.info(
         "%s room=%s topic=%s docs=%d%s | %s",
         event,
-        chatroom_id,
+        chatroom_id or "-",  # WEB 이 안 보내면 대화 단위 추적만 안 될 뿐, 나머지는 그대로
         topic,
         source_count,
         " (RAG 실패)" if rag_degraded else "",
