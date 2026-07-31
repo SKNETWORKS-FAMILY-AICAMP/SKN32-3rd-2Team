@@ -1,13 +1,18 @@
 import os
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from ..auth import require_admin, require_admin_api
 from ..database import get_db
-from ..services.user_service import get_user_list_by_params
+from ..services.user_service import (
+    UserServiceError,
+    create_user_by_admin,
+    get_user_list_by_params,
+    update_user_profile,
+)
 
 router = APIRouter(
     prefix="/admin/users",
@@ -20,21 +25,15 @@ templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 @router.get("", response_class=HTMLResponse)
 def users_page(
-    request: Request,
-    page: int = 1,
-    size: int = 20,
-    db: Session = Depends(get_db),
+    request: Request
 ):
     user, redirect = require_admin(request)
     if redirect:
         return redirect
 
-    user_list = get_user_list_by_params(db, page=page, size=size)
-
     return templates.TemplateResponse(
         request,
-        "admin/users.html",
-        {"user": user, "user_list": user_list, "active": "admin_users"},
+        "admin/users.html", {"user": user,"active": "admin_users"},
     )
 
 
@@ -60,3 +59,58 @@ def list_users_api(
         page=page,
         size=size,
     )
+
+
+@router.post("/api/create")
+def create_user_api(
+    request: Request,
+    user_id: str = Form(...),
+    passwd: str = Form(...),
+    passwd_confirm: str = Form(...),
+    name: str = Form(...),
+    department: str = Form(...),
+    is_admin: bool | None = Form(None),
+    is_disabled: bool | None = Form(None),
+    db: Session = Depends(get_db),
+):
+    """유저관리 화면의 '유저 추가' 모달(회원가입 모달 재사용) 제출이 여기로 들어온다.
+    공개 회원가입(/auth/signup)과 달리 관리자 권한이 있어야 호출 가능하다."""
+    require_admin_api(request)
+
+    try:
+        create_user_by_admin(db, user_id, passwd, passwd_confirm, name, department, is_admin, is_disabled)
+    except UserServiceError as e:
+        return JSONResponse(status_code=e.status_code, content={"detail": e.message})
+
+    return JSONResponse(status_code=201, content={"detail": "유저가 추가되었습니다."})
+
+
+@router.patch("/api/{user_id}")
+def update_user_api(
+    request: Request,
+    user_id: str,
+    name: str = Form(None),
+    department: str = Form(None),
+    passwd: str = Form(None),
+    is_admin: bool | None = Form(None),
+    is_disabled: bool | None = Form(None),
+    db: Session = Depends(get_db),
+):
+    """유저관리 테이블의 행을 클릭하면 뜨는 수정 모달 제출.
+    이름/부서명/비밀번호/관리자권한/비활성여부를 변경할 수 있다."""
+    require_admin_api(request)
+
+    try:
+        update_user_profile(
+            db,
+            user_id,
+            name=name,
+            department=department,
+            passwd=passwd,
+            is_admin=is_admin,
+            is_disabled=is_disabled,
+        )
+    except UserServiceError as e:
+        return JSONResponse(status_code=e.status_code, content={"detail": e.message})
+
+    return JSONResponse(status_code=200, content={"detail": "수정되었습니다."})

@@ -1,10 +1,16 @@
 {% extends "layout/app_base.html" %}
 
-{% block title %}유저 관리{% endblock %}
+{% block title %}유저관리{% endblock %}
 
 {% block content %}
 <div class="admin-panel">
-  <h1 class="panel-title">유저 관리</h1>
+  <div class="panel-head">
+    <div>
+      <div class="eyebrow">유저관리</div>
+      <h1 class="panel-title">유저관리</h1>
+    </div>
+    <button type="button" class="btn-secondary" onclick="openUserModal('create')">유저 추가</button>
+  </div>
 
   <div class="filter-bar">
     <input id="f-name" type="text" placeholder="이름 검색">
@@ -34,21 +40,23 @@
       </tr>
     </thead>
     <tbody id="user-list">
-      {% for u in user_list['items'] %}
-      <tr>
-        <td>{{ u.id }}</td>
-        <td>{{ u.name }}</td>
-        <td>{{ u.department }}</td>
-        <td><span class="badge {{ 'badge-off' if u.is_disabled else 'badge-on' }}">{{ "비활성" if u.is_disabled else "활성" }}</span></td>
-        <td>{{ "관리자" if u.is_admin else "일반" }}</td>
-        <td>{{ u.created_at }}</td>
-      </tr>
-      {% endfor %}
     </tbody>
   </table>
 
   <div id="pagination" class="pagination"></div>
 </div>
 
+<!-- 회원가입/유저추가/유저수정 공용 모달 -->
+{% include "partials/user_modal.html" %}
+{% endblock %}
+
+{% block extra_script %}
+<script src="/static/js/user_modal.js"></script>
 <script src="/static/js/users.js"></script>
+<script>
+  // 유저 추가/수정 모달 제출이 성공하면 목록을 새로고침한다.
+  document.addEventListener("user-modal:success", function () {
+    loadUsers(currentPage);
+  });
+</script>
 {% endblock %}

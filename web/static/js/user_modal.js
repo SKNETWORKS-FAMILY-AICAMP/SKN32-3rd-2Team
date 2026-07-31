@@ -1,0 +1,143 @@
+(function () {
+  const overlay = document.getElementById("user-modal-overlay");
+  if (!overlay) return;
+
+  const form = document.getElementById("user-modal-form");
+  const notice = document.getElementById("user-modal-notice");
+  const titleEl = document.getElementById("user-modal-title");
+  const submitBtn = document.getElementById("user-modal-submit");
+
+  const userIdInput = document.getElementById("user-modal-user-id");
+  const passwdInput = document.getElementById("user-modal-passwd");
+  const passwdConfirmInput = document.getElementById("user-modal-passwd-confirm");
+  const passwdConfirmField = document.getElementById("field-passwd-confirm");
+  const nameInput = document.getElementById("user-modal-name");
+  const departmentInput = document.getElementById("user-modal-department");
+  const adminStatusField = document.getElementById("field-admin-status");
+  const isAdminInput = document.getElementById("user-modal-is-admin");
+  const isDisabledInput = document.getElementById("user-modal-is-disabled");
+  const signupHintField = document.getElementById("field-signup-hint");
+
+  // 모드별 차이점: 안내문구(회원가입만) / 아이디 수정가능여부 / 비번확인 표시여부 / 관리자·비활성 표시여부
+  const MODE_CONFIG = {
+    signup: {
+      title: "회원가입", submitLabel: "가입하기",
+      action: "/auth/signup", method: "POST",
+      userIdEditable: true, showPasswdConfirm: true, passwdRequired: true,
+      showAdminStatus: false, showSignupHint: true,
+    },
+    create: {
+      title: "유저 추가", submitLabel: "추가하기",
+      action: "/admin/users/api/create", method: "POST",
+      userIdEditable: true, showPasswdConfirm: true, passwdRequired: true,
+      showAdminStatus: true, showSignupHint: false,
+    },
+    edit: {
+      title: "유저 정보 수정", submitLabel: "저장",
+      action: null, method: "PATCH",
+      userIdEditable: false, showPasswdConfirm: false, passwdRequired: false,
+      showAdminStatus: true, showSignupHint: false,
+    },
+  };
+
+  window.openUserModal = function (mode, prefill) {
+    prefill = prefill || {};
+    const config = MODE_CONFIG[mode];
+
+    form.dataset.mode = mode;
+    form.dataset.method = config.method;
+    form.dataset.action = mode === "edit"
+      ? `/admin/users/api/${encodeURIComponent(prefill.userId)}`
+      : config.action;
+
+    titleEl.textContent = config.title;
+    submitBtn.textContent = config.submitLabel;
+
+    userIdInput.value = prefill.userId || "";
+    userIdInput.readOnly = !config.userIdEditable;
+
+    passwdInput.value = "";
+    passwdInput.required = config.passwdRequired;
+    passwdInput.placeholder = config.passwdRequired ? "8자 이상" : "변경할 때만 입력하세요";
+
+    passwdConfirmInput.value = "";
+    passwdConfirmField.classList.toggle("hidden", !config.showPasswdConfirm);
+
+    nameInput.value = prefill.name || "";
+    departmentInput.value = prefill.department || "";
+
+    adminStatusField.classList.toggle("hidden", !config.showAdminStatus);
+    isAdminInput.checked = !!prefill.isAdmin;
+    isDisabledInput.checked = !!prefill.isDisabled;
+
+    // 이용/채팅 내역 분석 안내는 '회원가입'에서만 노출 (유저관리 쪽 추가/수정에는 안 보임)
+    signupHintField.classList.toggle("hidden", !config.showSignupHint);
+
+    notice.className = "form-notice";
+    notice.textContent = "";
+
+    overlay.classList.add("open");
+    (config.userIdEditable ? userIdInput : nameInput).focus();
+  };
+
+  function closeModal() {
+    overlay.classList.remove("open");
+    form.reset();
+  }
+
+  overlay.querySelectorAll("[data-modal-close]").forEach(function (btn) {
+    btn.addEventListener("click", closeModal);
+  });
+  overlay.addEventListener("click", function (e) {
+    if (e.target === overlay) closeModal();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && overlay.classList.contains("open")) closeModal();
+  });
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const mode = form.dataset.mode;
+
+    if (mode !== "edit" && passwdInput.value !== passwdConfirmInput.value) {
+      notice.className = "form-notice error show";
+      notice.textContent = "비밀번호가 일치하지 않습니다.";
+      return;
+    }
+
+    const formData = new FormData(form);
+    const userId = userIdInput.value;
+
+    if (mode === "edit") {
+      formData.delete("user_id");
+      formData.delete("passwd_confirm");
+      if (!passwdInput.value) formData.delete("passwd");
+      formData.set("is_admin", isAdminInput.checked ? "true" : "false");
+      formData.set("is_disabled", isDisabledInput.checked ? "true" : "false");
+    }
+
+    try {
+      const res = await fetch(form.dataset.action, { method: form.dataset.method, body: formData });
+      const data = await res.json();
+
+      if (!res.ok) {
+        notice.className = "form-notice error show";
+        notice.textContent = data.detail || "처리에 실패했습니다.";
+        return;
+      }
+
+      notice.className = "form-notice success show";
+      notice.textContent = data.detail;
+
+      setTimeout(function () {
+        closeModal();
+        document.dispatchEvent(new CustomEvent("user-modal:success", {
+          detail: { mode: mode, userId: userId, message: data.detail },
+        }));
+      }, 800);
+    } catch (err) {
+      notice.className = "form-notice error show";
+      notice.textContent = "네트워크 오류가 발생했습니다. 다시 시도해주세요.";
+    }
+  });
+})();

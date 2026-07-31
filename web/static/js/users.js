@@ -1,7 +1,24 @@
+let currentPage = 1;
+
 document.addEventListener("DOMContentLoaded", function () {
   loadUsers(1);
+
   document.getElementById("f-search").addEventListener("click", function () {
     loadUsers(1);
+  });
+
+  // 행 클릭 -> 수정 모달 (SSR로 렌더된 행 / JS로 다시 그려진 행 모두 이벤트 위임으로 처리)
+  document.getElementById("user-list").addEventListener("click", function (e) {
+    const tr = e.target.closest("tr");
+    if (!tr) return;
+
+    openUserModal("edit", {
+      userId: tr.dataset.userId,
+      name: tr.dataset.name,
+      department: tr.dataset.department,
+      isAdmin: tr.dataset.isAdmin === "true",
+      isDisabled: tr.dataset.isDisabled === "true",
+    });
   });
 });
 
@@ -18,6 +35,7 @@ function currentFilters() {
 }
 
 async function loadUsers(page = 1) {
+  currentPage = page;
   const filters = currentFilters();
   const params = new URLSearchParams({ page });
 
@@ -39,7 +57,8 @@ async function loadUsers(page = 1) {
   const tbody = document.querySelector("#user-list");
 
   tbody.innerHTML = data.items.map(user => `
-        <tr>
+        <tr data-user-id="${user.id}" data-name="${user.name}" data-department="${user.department}"
+            data-is-admin="${user.is_admin}" data-is-disabled="${user.is_disabled}">
             <td>${user.id}</td>
             <td>${user.name}</td>
             <td>${user.department}</td>

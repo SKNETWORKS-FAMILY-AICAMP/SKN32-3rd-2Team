@@ -13,9 +13,10 @@
   --line-200: #e2e4ea;
   --danger: #c0392b;
   --danger-bg: #fbeae8;
+  --success: #1f6f43;
+  --success-bg: #e6f2ea;
   --radius: 10px;
-  --font-display: "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-body: "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 * {
@@ -30,7 +31,7 @@ body {
 }
 
 body {
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   color: var(--ink-900);
   background: var(--paper-50);
   -webkit-font-smoothing: antialiased;
@@ -69,7 +70,7 @@ a:focus-visible {
   width: 100%;
   padding: 11px 13px;
   font-size: 14px;
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   color: var(--ink-900);
   background: var(--surface);
   border: 1px solid var(--line-200);
@@ -140,8 +141,8 @@ a:focus-visible {
 }
 
 .form-notice.success {
-  background: #e6f2ea;
-  color: #1f6f43;
+  background: var(--success-bg);
+  color: var(--success);
 }
 
 .form-notice.error {
@@ -164,46 +165,74 @@ a:focus-visible {
   text-align: center;
 }
 
-
-.brand-logo {
-  height: 66px;
-  width: auto;
+.brand {
+  margin-bottom: 32px;
 }
 
+.brand-logo,
 .brand-logo-login {
-  height: 160px;
+  height: 34px;
   width: auto;
 }
 
-.brand-mark {
-  font-family: var(--font-display);
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--navy-900);
-  letter-spacing: -0.01em;
-}
-
-.brand-tagline {
-  margin-top: 6px;
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+.login-footer {
+  margin-top: 22px;
+  font-size: 13px;
   color: var(--ink-400);
 }
 
+.login-footer button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent-600);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------- 모달 공통 (회원가입 / 유저추가 / 유저수정) ---------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 24, 48, 0.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 100;
+}
+
+.modal-overlay.open {
+  display: flex;
+}
+
+.modal-card,
 .login-card {
   position: relative;
   background: var(--surface);
   border: 1px solid var(--line-200);
   border-radius: var(--radius);
+  padding: 32px 30px 28px;
+}
+
+.login-card {
+  border: 1px solid var(--line-200);
   padding: 36px 32px 30px;
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 420px;
 }
 
 /* 시그니처 요소: 문서 인증 마크를 연상시키는 코너 브래킷 */
 .login-card::before,
 .login-card::after,
-.login-card .corner-br,
-.login-card .corner-bl {
+.login-card .corner-bl,
+.login-card .corner-br {
   content: "";
   position: absolute;
   width: 18px;
@@ -239,70 +268,14 @@ a:focus-visible {
   border-top: none;
 }
 
-.login-card h1 {
-  font-family: var(--font-display);
+.login-card h1,
+.modal-head h2 {
+  font-family: var(--font-sans);
   font-size: 18px;
   font-weight: 700;
   margin: 0 0 24px;
   color: var(--navy-900);
   text-align: left;
-}
-
-.login-footer {
-  margin-top: 22px;
-  font-size: 13px;
-  color: var(--ink-400);
-}
-
-.login-footer button {
-  background: none;
-  border: none;
-  padding: 0;
-  color: var(--accent-600);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-/* ---------- 회원가입 모달 ---------- */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(11, 24, 48, 0.55);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  z-index: 100;
-}
-
-.modal-overlay.open {
-  display: flex;
-}
-
-.modal-card {
-  position: relative;
-  width: 100%;
-  max-width: 420px;
-  background: var(--surface);
-  border-radius: var(--radius);
-  padding: 32px 30px 28px;
-  max-height: 90vh;
-  /*overflow-y: auto;*/
-}
-
-.modal-card::before {
-  left: -9px;
-  border-right: none;
-  border-bottom: none;
-}
-
-.modal-card::after {
-  right: -9px;
-  border-left: none;
-  border-bottom: none;
 }
 
 .modal-head {
@@ -313,10 +286,6 @@ a:focus-visible {
 }
 
 .modal-head h2 {
-  font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--navy-900);
   margin: 0;
 }
 
@@ -332,6 +301,32 @@ a:focus-visible {
 
 .modal-close:hover {
   color: var(--ink-900);
+}
+
+.field-hint {
+  font-size: 12px;
+  color: var(--ink-400);
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-600);
+  cursor: pointer;
+}
+
+.checkbox-field input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-600);
+  cursor: pointer;
+}
+
+.hidden {
+  display: none !important;
 }
 
 /* ---------- 메인(로그인 후) 화면 : 공통 헤더/사이드바 ---------- */
@@ -375,11 +370,6 @@ a:focus-visible {
   font-size: 14px;
   font-weight: 500;
   color: var(--ink-900);
-}
-
-.header-user .user-dept {
-  font-size: 12px;
-  color: var(--ink-400);
 }
 
 .header-user form {
@@ -483,7 +473,7 @@ a:focus-visible {
 }
 
 .welcome-box h1 {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-size: 24px;
   font-weight: 700;
   color: var(--navy-900);
@@ -496,27 +486,24 @@ a:focus-visible {
   color: var(--ink-600);
 }
 
-@media (max-width: 640px) {
-  .app-sidebar {
-    width: 72px;
-  }
-
-  .nav-item span.label {
-    display: none;
-  }
-}
-
 /* ---------- 관리자 : 유저관리 화면 ---------- */
 .admin-panel {
   max-width: 960px;
 }
 
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
 .panel-title {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-size: 24px;
   font-weight: 700;
   color: var(--navy-900);
-  margin: 4px 0 20px;
+  margin: 4px 0 0;
 }
 
 .filter-bar {
@@ -530,7 +517,7 @@ a:focus-visible {
 .filter-bar select {
   padding: 9px 12px;
   font-size: 13px;
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   border: 1px solid var(--line-200);
   border-radius: 8px;
   background: var(--surface);
@@ -579,8 +566,8 @@ a:focus-visible {
   font-weight: 500;
 }
 
-.data-table tbody tr:last-child td {
-  border-bottom: none;
+.data-table tbody tr {
+  cursor: pointer;
 }
 
 .data-table tbody tr:hover {
@@ -632,4 +619,14 @@ a:focus-visible {
   border-color: var(--accent-600);
   color: var(--surface);
   font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .app-sidebar {
+    width: 72px;
+  }
+
+  .nav-item span.label {
+    display: none;
+  }
 }
