@@ -1,0 +1,80 @@
+"""Smart HR — LLM 서비스 (port 8001).
+
+시퀀스다이어그램(PPT 17p) 상 위치:
+    웹 프론트엔드 → 챗봇 서버(8000) → [LLM 서비스(8001)] → RAG 서비스(8002)
+
+이 서비스는 DB에 쓰지 않는다. 답변/주제/근거를 JSON으로 돌려주기만 하고,
+`chat` / `chatroom` 테이블 저장은 챗봇 서버가 담당한다.
+"""
+
+from __future__ import annotations
+
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from app.errors import LLMServiceError
+from app.routers import chat, meta
+from app.services import rag_client
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    await rag_client.close_client()
+
+
+app = FastAPI(
+    title="Smart HR — LLM 서비스",
+    description=(
+        "사내 HR 규정 질의응답용 LLM 서비스. "
+        "답변 생성 / 주제 분류 / 채팅방 이름 생성을 제공한다.\n\n"
+        "자세한 계약은 `LLM/docs/API.md` 참조."
+    ),
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+# 챗봇 서버(8000)가 서버사이드로 호출하는 구조라 CORS 가 꼭 필요하진 않지만,
+# 개발 중 프론트에서 직접 찔러볼 수 있게 열어둔다.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(chat.router)
+app.include_router(meta.router)
+
+
+@app.exception_handler(LLMServiceError)
+async def llm_error_handler(request: Request, exc: LLMServiceError) -> JSONResponse:
+    """모든 서비스 예외를 docs/API.md 6절의 형태로 통일한다."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error_code": exc.error_code, "message": exc.message},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error_code": "INVALID_REQUEST",
+            "message": "요청 형식이 올바르지 않습니다.",
+        },
+    )
