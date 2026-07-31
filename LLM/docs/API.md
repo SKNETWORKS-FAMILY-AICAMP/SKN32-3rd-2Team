@@ -65,13 +65,7 @@ logs/metrics.jsonl   ← JSONL 한 줄씩. 성능 보고서가 이 파일을 읽
 ```json
 {
   "chatroom_id": "3f1c...-uuid",
-  "message": "연차 며칠까지 쓸 수 있나요?",
-  "history": [
-    { "speaker": "user", "message": "안녕하세요" },
-    { "speaker": "llm",  "message": "무엇을 도와드릴까요?" }
-  ],
-  "provider": "openai",
-  "use_rag": true
+  "message": "연차 며칠까지 쓸 수 있나요?"
 }
 ```
 
@@ -79,9 +73,11 @@ logs/metrics.jsonl   ← JSONL 한 줄씩. 성능 보고서가 이 파일을 읽
 |---|---|---|---|
 | `chatroom_id` | string | ✅ | `chatroom.chatroom_id` (UUID) |
 | `message` | string | ✅ | 사용자 질문 |
-| `history` | array | ❌ | 이전 대화. **최근 2~3턴만** 보내면 됩니다(전체 X). 아래 설명 참고 |
-| `provider` | `"openai"` \| `"gemini"` | ❌ | 미지정 시 서버 기본값 |
-| `use_rag` | boolean | ❌ | 기본 `true`. `false`면 문서 검색 없이 답변 |
+| `history` | array | ❌ | 이전 대화. **1차 구현에서는 생략하세요.** 아래 설명 참고 |
+
+**보낼 건 두 개뿐입니다.** 나머지는 서버가 알아서 처리합니다.
+
+> Swagger(`/docs`)에는 위 표에 없는 필드가 몇 개 더 보입니다. 성능 비교·디버깅용으로 제가 쓰는 것이니 **무시하셔도 됩니다.** 안 보내면 서버 기본값으로 동작합니다.
 
 ### Response `200`
 

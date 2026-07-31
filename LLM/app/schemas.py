@@ -52,10 +52,21 @@ class ChatRequest(BaseModel):
             "서버는 상태를 저장하지 않으므로, 필요한 맥락은 매 요청에 실어 보내야 한다."
         ),
     )
+    # 아래 둘은 성능 비교·디버깅용 내부 스위치다. WEB 은 보내지 않으면 된다.
     provider: ProviderName | None = Field(
-        None, description="미지정 시 서버 기본값(DEFAULT_PROVIDER) 사용"
+        None,
+        description=(
+            "[내부용] WEB 에서는 보내지 마세요. 미지정 시 서버 기본값(DEFAULT_PROVIDER) 사용. "
+            "성능 보고서에서 OpenAI/Gemini 를 같은 질문으로 번갈아 호출할 때 씁니다."
+        ),
     )
-    use_rag: bool = Field(True, description="false면 문서 검색 없이 답변")
+    use_rag: bool = Field(
+        True,
+        description=(
+            "[내부용] WEB 에서는 보내지 마세요. false 면 문서 검색 없이 답변합니다. "
+            "RAG 가 답변 품질에 실제로 얼마나 기여하는지 측정할 때 씁니다."
+        ),
+    )
 
 
 class ChatResponse(BaseModel):
@@ -92,7 +103,7 @@ class TopicRequest(BaseModel):
         default_factory=list,
         description="선택. RAG가 찾은 문서명을 넣으면 분류 힌트로 쓴다.",
     )
-    provider: ProviderName | None = None
+    provider: ProviderName | None = Field(None, description="[내부용] 미지정 시 서버 기본값")
 
 
 class TopicResponse(BaseModel):
@@ -102,7 +113,7 @@ class TopicResponse(BaseModel):
 
 class ChatroomNameRequest(BaseModel):
     message: str = Field(..., min_length=1, description="해당 채팅방의 첫 질문")
-    provider: ProviderName | None = None
+    provider: ProviderName | None = Field(None, description="[내부용] 미지정 시 서버 기본값")
 
 
 class ChatroomNameResponse(BaseModel):
