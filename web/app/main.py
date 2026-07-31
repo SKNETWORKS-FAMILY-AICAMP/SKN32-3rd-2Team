@@ -23,6 +23,7 @@ from .auth import (
 )
 from .database import get_db
 from .models import User
+from .services.user_service import record_login
 from app.admin.user_router import router as users_router
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -86,6 +87,7 @@ def login_submit(
         )
 
     create_session(request, user.user_id, user.name, user.is_admin)
+    record_login(db, user.user_id)
     return RedirectResponse(url="/main", status_code=303)
 
 

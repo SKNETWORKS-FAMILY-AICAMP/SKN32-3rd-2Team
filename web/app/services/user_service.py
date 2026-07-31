@@ -4,11 +4,15 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from ..auth import hash_password
-from ..models import User
+from ..models import User, UserLoginHistory
 
 MAX_PAGE_SIZE = 100
 USER_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{4,20}$")
 
+def record_login(db: Session, user_id: str) -> None:
+    """로그인 성공 시 user_login_history에 이력 한 건을 남긴다."""
+    db.add(UserLoginHistory(user_id=user_id))
+    db.commit()
 
 class UserServiceError(Exception):
     """유저 생성/수정 중 발생하는 검증 오류. 라우터에서 status_code로 매핑해서 응답한다."""
