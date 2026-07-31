@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>문서 관리</title>
+    <link rel="stylesheet" href="res/css/rag.css">
+</head>
+<body>
+    <div class="doc-container">
+        <!-- 좌측 파일 탐색기 -->
+        <div class="file-explorer" id="fileExplorer">
+            <div class="explorer-content">
+                <!-- 대한민국 공통 법률 섹션 -->
+                <div class="section-header common-laws-header">
+                    <div class="section-title">🇰🇷 대한민국 공통 법률</div>
+                    <span class="section-count" id="commonCount">0</span>
+                </div>
+                <div class="file-list" id="commonFileList">
+                    <!-- 공통 법률 파일들이 여기에 동적으로 추가됨 -->
+                </div>
+
+                <!-- 일반 문서 섹션 -->
+                <div class="section-header">
+                    <div class="section-title">📄 일반 문서</div>
+                    <span class="section-count" id="docCount">0</span>
+                </div>
+                <div class="file-list" id="docFileList">
+                    <!-- doc_* 파일들이 여기에 동적으로 추가됨 -->
+                </div>
+            </div>
+
+            <!-- 하단 업로드 영역 -->
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-content">
+                    <div class="upload-icon">📄</div>
+                    <p class="upload-text">문서 업로드 및 대시보드</p>
+                    <p class="upload-subtext">PDF 파일을 드래그 앤 드롭하세요</p>
+                    <p class="upload-note">* 단일 파일만 업로드 가능</p>
+                </div>
+                <input type="file" id="fileInput" accept=".pdf" style="display: none;">
+            </div>
+        </div>
+
+        <!-- 리사이저 핸들 -->
+        <div class="resizer" id="resizer"></div>
+
+        <!-- 우측 파일 목록 테이블 패널 -->
+        <div class="file-detail-panel" id="fileDetailPanel">
+            <div class="panel-header">
+                <h2 class="panel-title" id="panelTitle">문서 목록</h2>
+                <span class="panel-subtitle" id="panelSubtitle">총 0개 문서</span>
+            </div>
+            <div class="panel-content" id="panelContent">
+                <!-- 대한민국 공통 법률 테이블 -->
+                <div class="table-section" id="commonTableSection">
+                    <div class="table-section-header common-laws-header">
+                        <h3 class="table-section-title">🇰🇷 대한민국 공통 법률</h3>
+                    </div>
+                    <div class="file-table-wrapper">
+                        <table class="file-table" id="commonFileTable">
+                            <thead>
+                                <tr>
+                                    <th class="col-icon"></th>
+                                    <th class="col-name">파일명</th>
+                                    <th class="col-size">크기</th>
+                                    <th class="col-date">업로드일</th>
+                                    <th class="col-status">벡터적재</th>
+                                    <th class="col-date">적재일</th>
+                                </tr>
+                            </thead>
+                            <tbody id="commonTableBody">
+                            </tbody>
+                        </table>
+                        <div class="empty-message" id="commonEmptyMsg">등록된 공통 법률 문서가 없습니다.</div>
+                    </div>
+                </div>
+
+                <!-- 일반 문서 테이블 -->
+                <div class="table-section" id="docTableSection">
+                    <div class="table-section-header">
+                        <h3 class="table-section-title">📄 일반 문서</h3>
+                    </div>
+                    <div class="file-table-wrapper">
+                        <table class="file-table" id="docFileTable">
+                            <thead>
+                                <tr>
+                                    <th class="col-icon"></th>
+                                    <th class="col-name">파일명</th>
+                                    <th class="col-size">크기</th>
+                                    <th class="col-date">업로드일</th>
+                                    <th class="col-status">벡터적재</th>
+                                    <th class="col-date">적재일</th>
+                                </tr>
+                            </thead>
+                            <tbody id="docTableBody">
+                            </tbody>
+                        </table>
+                        <div class="empty-message" id="docEmptyMsg">등록된 일반 문서가 없습니다.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="res/js/rag.js"></script>
+</body>
+</html>
