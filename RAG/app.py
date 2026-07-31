@@ -15,11 +15,16 @@ from config import Config
 
 # from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.embeddings import HuggingFaceEmbeddings
-
-
 embedding_model = HuggingFaceEmbeddings(
     model_name="jhgan/ko-sroberta-multitask"
 )
+
+
+from sentence_transformers import CrossEncoder
+reranker_model = CrossEncoder(
+    "BAAI/bge-reranker-v2-m3"
+)
+
 
 app = FastAPI(title=Config.API_TITLE)
 
@@ -579,17 +584,55 @@ async def search_vector(request: SearchRequest):
         )
 
 
-        # 검색
-        # K 값증가 테스트 26 07 31 0400 필요한 청크가 TOP 6~10 위에 있을 수도있다 .
+        # ==========================
+        # 1차 검색 : FAISS Top 20
+        # ==========================
+
         docs = vector_db.similarity_search(
             request.query,
-            k=10
+            k=20
         )
 
 
+        # ==========================
+        # 2차 검색 : Reranker
+        # ==========================
+
+        pairs = [
+            (
+                request.query,
+                doc.page_content
+            )
+            for doc in docs
+        ]
+
+
+        scores = reranker_model.predict(
+            pairs
+        )
+
+
+        reranked_docs = sorted(
+            zip(docs, scores),
+            key=lambda x: x[1],
+            reverse=True
+        )
+
+
+        # 최종 Top 5
+        final_docs = [
+            doc
+            for doc, score in reranked_docs[:5]
+        ]
+
+
+        # ==========================
+        # Response
+        # ==========================
+
         results = []
 
-        for doc in docs:
+        for doc in final_docs:
             results.append({
                 "content": doc.page_content,
                 "metadata": doc.metadata
