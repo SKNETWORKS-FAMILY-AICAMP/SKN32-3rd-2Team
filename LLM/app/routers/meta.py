@@ -21,12 +21,16 @@ from app.services.topic import classify
 router = APIRouter(tags=["meta"])
 
 
-@router.post("/v1/topic", response_model=TopicResponse, summary="주제 분류")
+@router.post("/v1/topic", response_model=TopicResponse, summary="[운영용] 주제 분류")
 async def topic(req: TopicRequest) -> TopicResponse:
     """`chat.topic` 용. 항상 고정 카테고리 중 하나만 반환한다.
 
-    `/v1/chat` 응답에 이미 topic 이 들어 있으므로 보통은 부를 필요가 없다.
-    과거 데이터 일괄 분류/재분류용.
+    **일반 대화 흐름에서는 쓰지 않는다.** `/v1/chat` 이 답변 생성과 주제 분류를
+    동시에 돌려 응답에 실어 보내므로, 따로 부르면 LLM 호출만 한 번 더 나간다.
+
+    남겨둔 용도는 일회성 배치 두 가지다.
+    - 카테고리 목록이 바뀌었을 때 과거 chat 행 재분류
+    - 발표 시연용 더미 데이터의 topic 채우기 (답변 생성 없이 분류만)
     """
     result, cached = await classify(req.message, req.source_files, req.provider)
     return TopicResponse(topic=result[:TOPIC_MAX_LEN], cached=cached)

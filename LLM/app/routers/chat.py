@@ -26,9 +26,14 @@ def _sse(event: str, payload: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-@router.post("/chat/stream", summary="답변 생성 (SSE 스트리밍)")
+@router.post("/chat/stream", summary="[미사용] 답변 생성 (SSE 스트리밍)")
 async def chat_stream(req: ChatRequest) -> StreamingResponse:
-    """`sources` → `token`* → `done` 순서로 흘려보낸다. 실패 시 `error`."""
+    """`sources` → `token`* → `done` 순서로 흘려보낸다. 실패 시 `error`.
+
+    1차 구현에서는 쓰지 않는다. WEB 파트는 `/v1/chat` 만 사용하기로 합의했고,
+    나중에 타이핑 효과가 필요해지면 붙인다. Request 형식이 `/v1/chat` 과
+    동일하므로 그때 요청 코드는 그대로 두면 된다.
+    """
 
     async def event_source():
         async for event, payload in stream_answer(req):

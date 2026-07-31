@@ -10,6 +10,16 @@
 - **Swagger (자동 생성, 항상 최신)**: `http://localhost:8001/docs`
 - 모든 요청/응답 `Content-Type: application/json`, 인코딩 UTF-8
 
+## WEB 파트가 실제로 쓸 엔드포인트는 3개입니다
+
+| | 엔드포인트 | 언제 부르나 |
+|---|---|---|
+| ✅ | `POST /v1/chat` | **사용자가 질문할 때마다.** 답변·출처·주제가 한 번에 나옵니다 |
+| ✅ | `POST /v1/chatroom-name` | 채팅방의 **첫 질문** 때 한 번 |
+| ✅ | `GET /health` | 상태 확인, 대시보드 카테고리 목록 조회 |
+| ⏸ | `POST /v1/chat/stream` | **당장은 안 씁니다.** 나중에 타이핑 효과가 필요해지면 (6절) |
+| 🔧 | `POST /v1/topic` | **평상시 호출 불필요.** 운영/시연 준비용 (7절) |
+
 ---
 
 ## 0. 이 서비스의 위치
@@ -21,21 +31,23 @@
 ```
 
 **LLM 서비스는 DB에 직접 쓰지 않습니다.** 시퀀스다이어그램(PPT 17p)대로 DB 저장은 챗봇 서버가 담당합니다.
-이 서비스는 답변 본문·주제·근거 문서를 JSON으로 돌려줄 뿐이고, 그걸 `chat` / `chatroom` 테이블에 넣는 건 챗봇 서버 몫입니다.
+이 서비스는 답변 본문·주제·근거 문서를 JSON으로 돌려줄 뿐입니다.
 
 ### DB 매핑 요약
 
 | 이 API의 응답 필드 | 저장 위치 | 컬럼 제약 |
 |---|---|---|
 | `ChatResponse.answer` | `chat.message` (speaker=`llm`) | TEXT |
-| `ChatResponse.topic` | `chat.topic` (사용자 발화 행) | VARCHAR(100) — 서버가 보장 |
+| `ChatResponse.topic` | `chat.topic` (**사용자 발화 행**) | VARCHAR(100) — 서버가 보장 |
 | `ChatroomNameResponse.name` | `chatroom.chatroom_name` | VARCHAR(100) — 서버가 보장 |
 
 길이 제한은 **LLM 서비스 쪽에서 이미 자르고 보내므로** 챗봇 서버가 추가로 truncate 할 필요 없습니다.
 
+> `topic` 은 **사용자 질문 행**에 저장해주세요. 대시보드 집계 쿼리가 `WHERE speaker='user'` 기준입니다.
+
 ---
 
-## 1. `POST /v1/chat` — 답변 생성
+## 1. `POST /v1/chat` — 답변 생성 ⭐ 기본 엔드포인트
 
 ### Request
 
@@ -77,73 +89,58 @@
   "topic": "휴가/휴직",
   "rag_degraded": false,
   "usage": {
-    "provider": "openai",
-    "model": "gpt-4o-mini",
-    "prompt_tokens": 1523,
-    "completion_tokens": 210,
-    "latency_ms": 2140,
-    "ttft_ms": null,
-    "rag_ms": 180
+    "provider": "openai", "model": "gpt-4o-mini",
+    "prompt_tokens": 1523, "completion_tokens": 210,
+    "latency_ms": 2140, "ttft_ms": null, "rag_ms": 180
   }
 }
 ```
 
-- `sources` → 스토리보드 13p "AI 답변 하단에 근거 문서명 노출"에 그대로 쓰면 됩니다.
-- `rag_degraded: true` 면 RAG 검색에 실패해 문서 없이 생성된 답변입니다. **에러가 아니라 정상 200**이고, `sources`는 빈 배열입니다. UI에서 "근거 문서를 찾지 못했습니다" 정도로 표시하면 됩니다.
-- `topic` 은 `/v1/topic` 을 따로 부를 필요 없이 여기에 이미 들어 있습니다.
+### 응답 필드를 어떻게 처리하면 되나
+
+| 필드 | 무엇 | 할 일 |
+|---|---|---|
+| `answer` | 답변 본문 | **DB 저장** → `chat.message` (speaker=`llm`) |
+| `topic` | 주제 분류 결과 (8종 중 하나) | **DB 저장** → `chat.topic` (사용자 발화 행) |
+| `sources` | 근거 문서 | **화면 표시.** 답변 하단 "근거 문서" 영역 (스토리보드 13p) |
+| `rag_degraded` | 문서 검색 실패 여부 | **UI 분기.** `true`면 "근거 문서를 찾지 못했습니다" 안내. 저장 불필요 |
+| `usage` | 계측값 (모델·토큰·지연) | **무시해도 됩니다.** 성능 보고서/디버깅용 |
+
+**이 한 번의 호출로 저장에 필요한 값이 전부 나옵니다.** 주제를 얻으려고 `/v1/topic` 을 추가로 부를 필요가 없습니다 — 내부적으로 답변 생성과 주제 분류를 동시에 돌려서 여기 실어 보냅니다.
+
+`rag_degraded: true` 는 **에러가 아니라 정상 200** 입니다. `sources` 만 빈 배열입니다.
 
 ---
 
-## 2. `POST /v1/chat/stream` — 답변 생성 (SSE 스트리밍)
+## 2. `POST /v1/chatroom-name` — 채팅방 이름 생성
 
-스토리보드 13p "실시간 스트리밍 대화 UI/UX"용. Request 형식은 `/v1/chat` 과 동일합니다.
+`chatroom.chatroom_name` 의 기본값은 `'새 대화'` 입니다. 사용자가 **첫 질문**을 보낸 시점에 한 번 불러 이름을 갱신하면 사이드바가 읽기 좋아집니다.
 
-`Content-Type: text/event-stream` 으로 아래 순서로 내려옵니다.
+**Request** `{ "message": "연차 며칠까지 쓸 수 있나요?" }`
+**Response** `{ "name": "연차 사용 일수 문의" }`
 
-```
-event: sources
-data: {"sources":[{"doc_id":12,"original_file_name":"5.근로기준법(법률).pdf", ...}],"rag_degraded":false}
-
-event: token
-data: {"delta":"연차유급"}
-
-event: token
-data: {"delta":"휴가는 "}
-
-... (반복) ...
-
-event: done
-data: {"topic":"휴가/휴직","usage":{"provider":"openai","model":"gpt-4o-mini","latency_ms":2140,"ttft_ms":410, ...}}
-```
-
-에러가 나면 마지막에 `done` 대신 `error` 이벤트가 옵니다.
-
-```
-event: error
-data: {"error_code":"LLM_TIMEOUT","message":"일시적인 오류입니다. 잠시 후 다시 시도해주세요."}
-```
-
-> `sources` 가 **토큰보다 먼저** 오므로, 근거 문서 영역을 답변 생성 전에 미리 그릴 수 있습니다.
+20자 내외 한국어. 100자를 넘지 않음이 보장됩니다.
+LLM 호출이 실패해도 500이 아니라 질문 앞부분을 잘라 이름을 돌려줍니다.
 
 ---
 
-## 3. `POST /v1/topic` — 주제 분류
+## 3. `GET /health`
 
-`chat.topic` 채우기용. `/v1/chat` 응답에 이미 포함되므로 **보통은 따로 부를 필요가 없고**, 과거 데이터 일괄 분류나 재분류 때 씁니다.
-
-### Request
 ```json
-{ "message": "연차 며칠까지 쓸 수 있나요?", "source_files": ["5.근로기준법(법률).pdf"] }
+{
+  "status": "ok",
+  "providers": { "openai": true, "gemini": true },
+  "default_provider": "openai",
+  "rag": "mock",
+  "topic_categories": ["휴가/휴직", "근태/근무형태", "..."]
+}
 ```
 
-`source_files` 는 선택입니다. RAG가 찾은 문서명을 넣으면 분류 정확도가 올라갑니다.
+`rag` 값: `up`(RAG 연결됨) / `down`(연결 실패) / `mock`(개발용 고정 응답)
 
-### Response `200`
-```json
-{ "topic": "휴가/휴직", "cached": false }
-```
+---
 
-### 카테고리 목록 (8종) — ⚠️ 대시보드 담당자 확인 필요
+## 4. 주제(topic) 카테고리 — ⚠️ 대시보드 담당자 확인 필요
 
 `chat.topic` 은 **항상 아래 8개 중 하나**입니다. 자유 문자열이 절대 나오지 않습니다.
 
@@ -175,47 +172,13 @@ GROUP BY topic;
 
 > 이 표는 "문서 = 카테고리" 매핑이 **아닙니다.** 법령 하나에 여러 주제가 섞여 있어서(근로기준법 = 임금 + 근로시간 + 연차 + 해고) 분류기에 주는 힌트로만 쓰고, 최종 판단은 질문 의도 기준입니다.
 
-**바꾸고 싶으면 말씀해 주세요.** `app/domain.py` 의 `TOPIC_CATEGORIES` 상수 한 줄이라 반영은 즉시 됩니다. 확정 전까지는 위 8종으로 동작합니다.
+**바꾸고 싶으면 말씀해 주세요.** `app/domain.py` 의 `TOPIC_CATEGORIES` 상수 한 줄이라 반영은 즉시 됩니다.
 
-카테고리 목록은 `GET /health` 의 `topic_categories` 로도 읽을 수 있으니, 대시보드에서 차트 축을 하드코딩하지 말고 이걸 받아 쓰면 목록이 바뀌어도 자동으로 맞습니다.
-
----
-
-## 4. `POST /v1/chatroom-name` — 채팅방 이름 생성
-
-`chatroom.chatroom_name` 의 기본값은 `'새 대화'` 입니다. 사용자가 첫 질문을 보낸 시점에 이 API를 불러 이름을 갱신하면 사이드바가 읽기 좋아집니다.
-
-### Request
-```json
-{ "message": "연차 며칠까지 쓸 수 있나요?" }
-```
-
-### Response `200`
-```json
-{ "name": "연차 사용 일수 문의" }
-```
-
-20자 내외 한국어. 100자를 넘지 않음이 보장됩니다.
+차트 축은 하드코딩하지 말고 `GET /health` 의 `topic_categories` 를 받아 쓰면, 목록이 바뀌어도 자동으로 맞습니다.
 
 ---
 
-## 5. `GET /health`
-
-```json
-{
-  "status": "ok",
-  "providers": { "openai": true, "gemini": true },
-  "default_provider": "openai",
-  "rag": "mock",
-  "topic_categories": ["휴가/휴직", "근태/근무형태", "..."]
-}
-```
-
-`rag` 값: `up`(실제 RAG 연결됨) / `down`(연결 실패) / `mock`(개발용 고정 응답 모드)
-
----
-
-## 6. 에러 규약
+## 5. 에러 규약
 
 에러는 HTTP 상태코드와 함께 **항상** 아래 형태로 옵니다.
 
@@ -233,29 +196,74 @@ GROUP BY topic;
 | 422 | `INVALID_REQUEST` | 요청 스키마 위반 |
 | 500 | `INTERNAL_ERROR` | 그 외 |
 
-**RAG 실패는 에러가 아닙니다.** `200` + `rag_degraded: true` + `sources: []` 로 내려갑니다. 챗봇이 문서 없이라도 답하는 게 낫다는 판단입니다.
+**RAG 실패는 에러가 아닙니다.** `200` + `rag_degraded: true` + `sources: []` 로 내려갑니다.
 
 ---
 
-## 7. LLM 서비스가 RAG에 요청하는 계약
+## 6. ⏸ `POST /v1/chat/stream` — 지금은 쓰지 않음
+
+구현은 되어 있으나 **1차 구현에서는 `/v1/chat` 만 씁니다.** 나중에 타이핑 효과가 필요해지면 그때 붙이면 됩니다.
+
+Request 형식은 `/v1/chat` 과 완전히 동일하므로, 나중에 바꿔도 요청 코드는 그대로 두면 됩니다.
+
+`Content-Type: text/event-stream` 으로 `sources` → `token`×N → `done` 순서로 내려옵니다.
+
+```
+event: sources
+data: {"sources":[...],"rag_degraded":false}
+
+event: token
+data: {"delta":"연차유급"}
+
+event: done
+data: {"topic":"휴가/휴직","usage":{...,"ttft_ms":410}}
+```
+
+실패 시 `done` 대신 `error` 이벤트가 옵니다.
+
+붙일 때 주의할 점 2가지:
+- **브라우저 내장 `EventSource` 로는 못 씁니다.** GET 전용이라 body를 못 보냅니다. `fetch` + `response.body.getReader()` 를 쓰세요.
+- **챗봇 서버가 중계할 때 버퍼링하면 안 됩니다.** 전부 받았다가 넘기면 스트리밍 효과가 사라집니다.
+
+---
+
+## 7. 🔧 `POST /v1/topic` — 평상시 호출 불필요
+
+**일반 대화 흐름에서는 부르지 마세요.** `/v1/chat` 응답에 `topic` 이 이미 들어 있어서, 따로 부르면 LLM 호출만 한 번 더 나가고 지연·비용이 늘어납니다.
+
+남겨둔 이유는 두 가지입니다.
+
+1. **카테고리 목록이 바뀌었을 때 과거 데이터 재분류.** 4절 8종은 아직 팀 확정 전이라, 바뀌면 기존 `chat` 행의 `topic` 이 옛 기준으로 남습니다. 도넛 차트를 일관되게 그리려면 과거 질문을 다시 분류해야 합니다.
+2. **발표용 더미 데이터 채우기.** 대시보드 시연에 데이터가 필요한데, 답변까지 생성하면 시간·비용이 듭니다. 질문만 넣어 `topic` 만 뽑는 게 훨씬 쌉니다.
+
+둘 다 일회성 배치 작업이라 **화면 코드가 아니라 스크립트에서 부르는 용도**입니다. 필요해지면 제가 스크립트를 만들겠습니다.
+
+**Request** `{ "message": "...", "source_files": ["복무규정.pdf"] }` (`source_files` 는 선택, 분류 힌트)
+**Response** `{ "topic": "휴가/휴직", "cached": false }`
+
+---
+
+## 8. LLM 서비스가 RAG에 요청하는 계약
 
 이 문서는 **LLM 서비스가 제공하는** API 명세입니다.
-LLM 서비스가 거꾸로 RAG 서비스(8002)에 **요구하는** 계약은 별도 문서로 분리했습니다.
+거꾸로 RAG 서비스(8002)에 **요구하는** 계약은 별도 문서로 분리했습니다.
 
 → [RAG_REQUIRED_API.md](RAG_REQUIRED_API.md) (수신자: Member C)
 
-챗봇 서버 입장에서는 알 필요가 없는 내용이지만, RAG가 죽었을 때 이 서비스가
-`500` 대신 `200 + rag_degraded: true` 로 응답한다는 점만 기억하시면 됩니다.
+챗봇 서버 입장에서는 알 필요가 없지만, RAG가 죽어도 이 서비스가 `500` 대신
+`200 + rag_degraded: true` 로 응답한다는 점만 기억하시면 됩니다.
 
 ---
 
-## 8. 로컬 실행
+## 9. 로컬 실행
 
 ```bash
 cd LLM
+python -m venv .venv && .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env      # API 키 채우기
 uvicorn app.main:app --reload --port 8001
 ```
 
 `http://localhost:8001/docs` 에서 바로 눌러볼 수 있습니다.
+API 키가 아직 없으면 `.env` 에 `LLM_MODE=mock` 을 넣으면 고정 응답으로 화면을 붙여볼 수 있습니다. **응답 형식은 실제와 동일합니다.**
