@@ -1,4 +1,4 @@
-"""도메인 상수.
+"""도메인 상수와 내부 모델.
 
 `TOPIC_CATEGORIES` 는 대시보드 도넛 차트(`chat.topic` GROUP BY)의 축이 되므로
 **팀 합의 대상**이다. 여기 한 곳만 고치면 분류기 프롬프트, enum 제약 스키마,
@@ -10,7 +10,11 @@
 
 from __future__ import annotations
 
-from typing import Final
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Final
+
+if TYPE_CHECKING:
+    from app.schemas import Source
 
 # chat.topic 은 VARCHAR(100) 이므로 모든 값이 100자 미만이어야 한다.
 TOPIC_CATEGORIES: Final[tuple[str, ...]] = (
@@ -36,3 +40,30 @@ CHATROOM_NAME_TARGET_LEN: Final[int] = 20
 
 assert FALLBACK_TOPIC in TOPIC_CATEGORIES
 assert all(len(c) <= TOPIC_MAX_LEN for c in TOPIC_CATEGORIES)
+
+
+@dataclass(slots=True)
+class RetrievedChunk:
+    """RAG 가 돌려준 문서 조각. **내부 전용이며 API 응답에 나가지 않는다.**
+
+    `content` 는 프롬프트의 [참고 문서] 블록을 만드는 데 쓰고, `score` 는 검색 품질
+    계측에 쓴다. 둘 다 화면에 표시할 값이 아니라 응답에서는 뺀다 — 특히 `content` 는
+    청크당 수백 자라, 그대로 실어 보내면 응답 대부분이 버려지는 데이터가 된다.
+
+    WEB 에 나가는 것은 `to_source()` 로 추린 문서명·페이지·doc_id 뿐이다.
+    """
+
+    original_file_name: str
+    content: str
+    doc_id: int | None = None
+    page: int | None = None
+    score: float | None = None
+
+    def to_source(self) -> "Source":
+        from app.schemas import Source
+
+        return Source(
+            doc_id=self.doc_id,
+            original_file_name=self.original_file_name,
+            page=self.page,
+        )

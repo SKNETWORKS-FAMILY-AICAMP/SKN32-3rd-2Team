@@ -15,12 +15,12 @@ from collections.abc import AsyncIterator, Sequence
 
 from app import metrics
 from app.config import get_settings
-from app.domain import FALLBACK_TOPIC, TOPIC_MAX_LEN
+from app.domain import FALLBACK_TOPIC, TOPIC_MAX_LEN, RetrievedChunk
 from app.errors import LLMServiceError, ProviderTimeout, ProviderUnavailable
 from app.prompts import ANSWER_SYSTEM, build_answer_context
 from app.providers.base import Message
 from app.providers.registry import get_provider
-from app.schemas import ChatRequest, ChatResponse, HistoryTurn, Source
+from app.schemas import ChatRequest, ChatResponse, HistoryTurn
 from app.services import rag_client
 from app.services.topic import classify
 
@@ -30,13 +30,13 @@ logger = logging.getLogger(__name__)
 SEARCH_QUERY_MAX_CHARS = 500
 
 
-def _to_messages(req: ChatRequest, sources: Sequence[Source]) -> list[Message]:
+def _to_messages(req: ChatRequest, chunks: Sequence[RetrievedChunk]) -> list[Message]:
     """대화 이력 + 이번 질문. 참고 문서는 마지막 사용자 턴에 붙인다."""
     messages = [
         Message(role="assistant" if turn.speaker == "llm" else "user", content=turn.message)
         for turn in req.history
     ]
-    context = build_answer_context(sources)
+    context = build_answer_context(chunks)
     messages.append(Message(role="user", content=f"{context}\n\n[질문]\n{req.message}"))
     return messages
 
@@ -66,7 +66,7 @@ def build_search_query(message: str, history: Sequence[HistoryTurn] = ()) -> str
     return f"{previous[:budget]} {message}"
 
 
-async def _retrieve(req: ChatRequest) -> tuple[list[Source], bool, int]:
+async def _retrieve(req: ChatRequest) -> tuple[list[RetrievedChunk], bool, int]:
     if not req.use_rag:
         return [], False, 0
     return await rag_client.search(build_search_query(req.message, req.history))
@@ -86,8 +86,8 @@ async def generate_answer(req: ChatRequest) -> ChatResponse:
     provider = get_provider(req.provider)
     started = time.perf_counter()
 
-    sources, degraded, rag_ms = await _retrieve(req)
-    source_files = [s.original_file_name for s in sources]
+    chunks, degraded, rag_ms = await _retrieve(req)
+    source_files = [c.original_file_name for c in chunks]
 
     # 답변 생성과 주제 분류는 서로 의존하지 않으므로 병렬로 돌린다.
     # 순차로 하면 분류 지연이 그대로 사용자 대기 시간에 더해진다.
@@ -96,7 +96,7 @@ async def generate_answer(req: ChatRequest) -> ChatResponse:
             asyncio.gather(
                 provider.generate(
                     system=ANSWER_SYSTEM,
-                    messages=_to_messages(req, sources),
+                    messages=_to_messages(req, chunks),
                     temperature=0.2,
                 ),
                 classify(req.message, source_files, req.provider),
@@ -123,7 +123,8 @@ async def generate_answer(req: ChatRequest) -> ChatResponse:
         chatroom_id=req.chatroom_id,
         topic=topic,
         rag_degraded=degraded,
-        source_count=len(sources),
+        source_count=len(chunks),
+        source_files=source_files,
         metrics=metrics.CallMetrics(
             provider=provider.name,
             model=answer_result.model,
@@ -137,7 +138,7 @@ async def generate_answer(req: ChatRequest) -> ChatResponse:
     return ChatResponse(
         answer=answer_result.text,
         topic=topic[:TOPIC_MAX_LEN],
-        sources=sources,
+        sources=[c.to_source() for c in chunks],
         rag_degraded=degraded,
     )
 
@@ -151,10 +152,10 @@ async def stream_answer(req: ChatRequest) -> AsyncIterator[tuple[str, dict]]:
     provider = get_provider(req.provider)
     started = time.perf_counter()
 
-    sources, degraded, rag_ms = await _retrieve(req)
-    source_files = [s.original_file_name for s in sources]
+    chunks, degraded, rag_ms = await _retrieve(req)
+    source_files = [c.original_file_name for c in chunks]
     yield "sources", {
-        "sources": [s.model_dump() for s in sources],
+        "sources": [c.to_source().model_dump() for c in chunks],
         "rag_degraded": degraded,
     }
 
@@ -165,7 +166,7 @@ async def stream_answer(req: ChatRequest) -> AsyncIterator[tuple[str, dict]]:
     try:
         stream = provider.stream(
             system=ANSWER_SYSTEM,
-            messages=_to_messages(req, sources),
+            messages=_to_messages(req, chunks),
             temperature=0.2,
         )
         # 첫 토큰까지만 타임아웃을 건다. 생성이 시작된 뒤에는 끊지 않는다.
@@ -201,7 +202,8 @@ async def stream_answer(req: ChatRequest) -> AsyncIterator[tuple[str, dict]]:
         chatroom_id=req.chatroom_id,
         topic=topic,
         rag_degraded=degraded,
-        source_count=len(sources),
+        source_count=len(chunks),
+        source_files=source_files,
         metrics=metrics.CallMetrics(
             provider=provider.name,
             model=provider.model,

@@ -13,7 +13,7 @@ import time
 import httpx
 
 from app.config import get_settings
-from app.schemas import Source
+from app.domain import RetrievedChunk
 
 logger = logging.getLogger(__name__)
 
@@ -59,15 +59,15 @@ async def close_client() -> None:
         _client = None
 
 
-def _to_sources(results: list[dict]) -> list[Source]:
-    """검색 결과를 화면에 표시할 출처 목록으로 바꾼다.
+def _to_chunks(results: list[dict]) -> list[RetrievedChunk]:
+    """RAG 응답을 내부 모델로 바꾸면서 중복을 제거한다.
 
     RAG 가 돌려주는 단위는 '문서'가 아니라 '청크'라, 한 페이지에서 인접한 청크가
     여러 개 걸리면 같은 (파일, 페이지)가 중복으로 온다. 그대로 두면 답변 하단에
     "복무규정.pdf p.5"가 두 번 표시되므로 여기서 합친다.
     페이지가 다르면 서로 다른 근거이므로 남긴다. 순서(유사도 순)는 유지한다.
     """
-    sources: list[Source] = []
+    chunks: list[RetrievedChunk] = []
     seen: set[tuple[str, int | None]] = set()
     for r in results:
         name = r.get("original_file_name") or r.get("file_name")
@@ -77,30 +77,30 @@ def _to_sources(results: list[dict]) -> list[Source]:
         if key in seen:
             continue
         seen.add(key)
-        sources.append(
-            Source(
-                doc_id=r.get("doc_id"),
+        chunks.append(
+            RetrievedChunk(
                 original_file_name=str(name),
+                content=str(r.get("content") or ""),
+                doc_id=r.get("doc_id"),
                 page=r.get("page"),
-                snippet=r.get("content"),
                 score=r.get("score"),
             )
         )
-    return sources
+    return chunks
 
 
-async def search(query: str, top_k: int | None = None) -> tuple[list[Source], bool, int]:
-    """관련 문서를 검색한다.
+async def search(query: str, top_k: int | None = None) -> tuple[list[RetrievedChunk], bool, int]:
+    """관련 문서 조각을 검색한다.
 
     Returns:
-        (sources, degraded, elapsed_ms) — degraded=True 면 검색 실패로 문서 없이 진행해야 함.
+        (chunks, degraded, elapsed_ms) — degraded=True 면 검색 실패로 문서 없이 진행해야 함.
     """
     settings = get_settings()
     k = top_k or settings.rag_top_k
     started = time.perf_counter()
 
     if settings.rag_mode == "mock":
-        return _to_sources(_MOCK_RESULTS[:k]), False, 0
+        return _to_chunks(_MOCK_RESULTS[:k]), False, 0
 
     try:
         resp = await get_client().post("/v1/search", json={"query": query, "top_k": k})
@@ -112,7 +112,7 @@ async def search(query: str, top_k: int | None = None) -> tuple[list[Source], bo
         return [], True, int((time.perf_counter() - started) * 1000)
 
     results = payload.get("results", []) if isinstance(payload, dict) else []
-    return _to_sources(results), False, int((time.perf_counter() - started) * 1000)
+    return _to_chunks(results), False, int((time.perf_counter() - started) * 1000)
 
 
 async def health() -> str:

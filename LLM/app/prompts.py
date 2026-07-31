@@ -8,8 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from app.domain import CHATROOM_NAME_TARGET_LEN, TOPIC_CATEGORIES
-from app.schemas import Source
+from app.domain import CHATROOM_NAME_TARGET_LEN, TOPIC_CATEGORIES, RetrievedChunk
 
 ANSWER_SYSTEM = """당신은 한국기술교육대학교의 사내 HR 규정 안내 AI 어시스턴트입니다.
 임직원의 인사·복무·복리후생 관련 질문에 사내 규정과 관련 법령을 근거로 답변합니다.
@@ -28,15 +27,18 @@ NO_CONTEXT_NOTICE = """[참고 문서]
 (검색된 문서가 없습니다. 일반적인 안내만 제공하고, 정확한 내용은 인사팀 확인이 필요하다고 안내하세요.)"""
 
 
-def build_answer_context(sources: Sequence[Source]) -> str:
-    """검색 결과를 프롬프트에 넣을 [참고 문서] 블록으로 만든다."""
-    if not sources:
+def build_answer_context(chunks: Sequence[RetrievedChunk]) -> str:
+    """검색 결과를 프롬프트에 넣을 [참고 문서] 블록으로 만든다.
+
+    청크 본문(`content`)은 여기서만 쓰인다. API 응답에는 나가지 않는다.
+    """
+    if not chunks:
         return NO_CONTEXT_NOTICE
 
     blocks = []
-    for i, s in enumerate(sources, 1):
-        page = f" p.{s.page}" if s.page is not None else ""
-        blocks.append(f"[문서 {i}] {s.original_file_name}{page}\n{s.snippet or ''}")
+    for i, c in enumerate(chunks, 1):
+        page = f" p.{c.page}" if c.page is not None else ""
+        blocks.append(f"[문서 {i}] {c.original_file_name}{page}\n{c.content}")
     return "[참고 문서]\n" + "\n\n".join(blocks)
 
 

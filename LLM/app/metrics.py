@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -67,8 +68,15 @@ def record_chat(
     topic: str,
     rag_degraded: bool,
     source_count: int,
+    source_files: Sequence[str] = (),
     metrics: CallMetrics,
 ) -> None:
+    """한 번의 대화 처리 결과를 콘솔 한 줄 + JSONL 한 줄로 남긴다.
+
+    `source_files` 는 화면에 나가지 않지만 여기 기록한다. 성능 보고서에서
+    '정답 근거 문서가 검색 결과에 포함됐는가'(recall@k)를 사후 집계하려면
+    어떤 문서가 걸렸는지가 남아 있어야 한다.
+    """
     logger.info(
         "%s room=%s topic=%s docs=%d%s | %s",
         event,
@@ -84,5 +92,6 @@ def record_chat(
         topic=topic,
         rag_degraded=rag_degraded,
         source_count=source_count,
+        source_files=list(source_files),
         **asdict(metrics),
     )

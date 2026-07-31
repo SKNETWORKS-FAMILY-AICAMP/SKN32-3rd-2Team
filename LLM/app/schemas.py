@@ -24,13 +24,20 @@ class HistoryTurn(BaseModel):
 
 
 class Source(BaseModel):
-    """답변의 근거 문서. 스토리보드 13p '답변 하단 근거 문서명 노출'용."""
+    """답변의 근거 문서. 스토리보드 13p '답변 하단 근거 문서명 노출'용.
 
-    doc_id: int | None = Field(None, description="document.doc_id. RAG가 알려주지 않으면 null")
-    original_file_name: str = Field(..., description="document.original_file_name")
-    page: int | None = Field(None, description="근거가 위치한 페이지")
-    snippet: str | None = Field(None, description="인용 구간 일부")
-    score: float | None = Field(None, description="검색 유사도 점수")
+    화면에 표시할 값만 담는다. 청크 본문과 유사도 점수는 서버 내부에서만 쓰고
+    응답에는 싣지 않는다 (docs/API.md 1절 참조).
+    """
+
+    doc_id: int | None = Field(
+        None,
+        description="document.doc_id. 문서 원본 링크·다운로드에 쓴다. RAG가 알려주지 않으면 null",
+    )
+    original_file_name: str = Field(
+        ..., description="document.original_file_name. 화면에 표시할 문서명"
+    )
+    page: int | None = Field(None, description='근거가 위치한 페이지. "복무규정.pdf p.5" 표시용')
 
 
 class ChatRequest(BaseModel):
