@@ -38,7 +38,12 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="사용자 질문")
     history: list[HistoryTurn] = Field(
         default_factory=list,
-        description="이전 대화. 최근 N턴만 보내면 된다(전체를 보낼 필요 없음).",
+        description=(
+            "이전 대화. 최근 2~3턴만 보내면 된다(전체를 보낼 필요 없음). "
+            "생략하거나 빈 배열로 두면 이 질문을 앞뒤 맥락 없는 독립 질문으로 처리한다. "
+            "채워 보내면 '그럼 반차는?' 같은 후속 질문의 답변과 문서 검색이 함께 정확해진다. "
+            "서버는 상태를 저장하지 않으므로, 필요한 맥락은 매 요청에 실어 보내야 한다."
+        ),
     )
     provider: ProviderName | None = Field(
         None, description="미지정 시 서버 기본값(DEFAULT_PROVIDER) 사용"

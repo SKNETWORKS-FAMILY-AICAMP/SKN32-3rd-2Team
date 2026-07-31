@@ -20,11 +20,14 @@ from app.errors import LLMServiceError, ProviderTimeout, ProviderUnavailable
 from app.prompts import ANSWER_SYSTEM, build_answer_context
 from app.providers.base import Message
 from app.providers.registry import get_provider
-from app.schemas import ChatRequest, ChatResponse, Source
+from app.schemas import ChatRequest, ChatResponse, HistoryTurn, Source
 from app.services import rag_client
 from app.services.topic import classify
 
 logger = logging.getLogger(__name__)
+
+# 임베딩 모델 입력 길이를 고려한 검색어 상한.
+SEARCH_QUERY_MAX_CHARS = 500
 
 
 def _to_messages(req: ChatRequest, sources: Sequence[Source]) -> list[Message]:
@@ -38,10 +41,35 @@ def _to_messages(req: ChatRequest, sources: Sequence[Source]) -> list[Message]:
     return messages
 
 
+def build_search_query(message: str, history: Sequence[HistoryTurn] = ()) -> str:
+    """RAG 에 보낼 검색어를 만든다.
+
+    `history` 가 비어 있으면 질문 원문을 그대로 쓴다. 즉 WEB 이 대화 이력을
+    보내지 않는 동안은 '질문을 각각 독립으로 취급'하는 동작이 된다.
+
+    이력이 오기 시작하면 직전 사용자 질문을 앞에 붙인다. "그럼 반차는?" 처럼
+    그 문장만으로는 의미가 서지 않는 후속 질문이 엉뚱한 문서를 물어오는 것을 막는다.
+    임베딩 모델 입력 길이가 있으므로 전체 길이를 제한하되, **현재 질문은 절대
+    자르지 않고** 앞에 붙는 이전 질문 쪽을 줄인다.
+    """
+    message = message.strip()
+    previous = next(
+        (t.message.strip() for t in reversed(history) if t.speaker == "user" and t.message.strip()),
+        None,
+    )
+    if not previous:
+        return message[:SEARCH_QUERY_MAX_CHARS]
+
+    budget = SEARCH_QUERY_MAX_CHARS - len(message) - 1
+    if budget <= 0:
+        return message[:SEARCH_QUERY_MAX_CHARS]
+    return f"{previous[:budget]} {message}"
+
+
 async def _retrieve(req: ChatRequest) -> tuple[list[Source], bool, int]:
     if not req.use_rag:
         return [], False, 0
-    return await rag_client.search(req.message)
+    return await rag_client.search(build_search_query(req.message, req.history))
 
 
 def _wrap_provider_error(exc: Exception) -> LLMServiceError:

@@ -60,11 +60,23 @@ async def close_client() -> None:
 
 
 def _to_sources(results: list[dict]) -> list[Source]:
+    """검색 결과를 화면에 표시할 출처 목록으로 바꾼다.
+
+    RAG 가 돌려주는 단위는 '문서'가 아니라 '청크'라, 한 페이지에서 인접한 청크가
+    여러 개 걸리면 같은 (파일, 페이지)가 중복으로 온다. 그대로 두면 답변 하단에
+    "복무규정.pdf p.5"가 두 번 표시되므로 여기서 합친다.
+    페이지가 다르면 서로 다른 근거이므로 남긴다. 순서(유사도 순)는 유지한다.
+    """
     sources: list[Source] = []
+    seen: set[tuple[str, int | None]] = set()
     for r in results:
         name = r.get("original_file_name") or r.get("file_name")
         if not name:
             continue  # 문서명이 없으면 출처로 표시할 수 없다
+        key = (str(name), r.get("page"))
+        if key in seen:
+            continue
+        seen.add(key)
         sources.append(
             Source(
                 doc_id=r.get("doc_id"),
