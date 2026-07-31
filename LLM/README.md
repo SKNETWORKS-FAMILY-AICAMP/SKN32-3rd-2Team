@@ -3,7 +3,13 @@
 사내 HR 규정 질의응답 시스템의 **LLM 파트**. 답변 생성 / 주제 분류 / 채팅방 이름 생성을 담당한다.
 
 > 담당: Member D · 브랜치 `LLM` · 포트 `8001`
-> API 명세서: [docs/API.md](docs/API.md) ← **챗봇 UI 담당자는 이 문서만 보면 됩니다**
+
+## 명세서 두 종류
+
+| 문서 | 방향 | 받는 사람 |
+|---|---|---|
+| [docs/API.md](docs/API.md) | **제공** — 이 서비스가 노출하는 API | WEB 파트 (챗봇 서버 / 프론트, 8000) |
+| [docs/RAG_REQUIRED_API.md](docs/RAG_REQUIRED_API.md) | **요청** — 이 서비스가 필요로 하는 API | RAG 파트 (Member C, 8002) |
 
 ---
 

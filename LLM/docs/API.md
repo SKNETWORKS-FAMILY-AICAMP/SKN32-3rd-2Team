@@ -1,7 +1,10 @@
-# LLM 서비스 API 명세서
+# LLM 서비스 API 명세서 (제공)
 
 > Smart HR — Member D (LLM 파트) 산출물
-> 대상: 챗봇 서버/프론트 담당(Member B), RAG 담당(Member C)
+> **받는 사람: 챗봇 서버 / 프론트 담당 (WEB 파트, port 8000)**
+>
+> 이 문서는 **LLM 서비스가 제공하는** API입니다.
+> 제가 RAG 담당자에게 **요청드리는** 명세는 → [RAG_REQUIRED_API.md](RAG_REQUIRED_API.md)
 
 - **Base URL**: `http://localhost:8001`
 - **Swagger (자동 생성, 항상 최신)**: `http://localhost:8001/docs`
@@ -234,33 +237,15 @@ GROUP BY topic;
 
 ---
 
-## 7. RAG 서비스에 요청하는 계약 (Member C 확인 필요)
+## 7. LLM 서비스가 RAG에 요청하는 계약
 
-LLM 서비스는 아래 형태로 RAG 서비스를 호출합니다. 다르면 알려주세요, 맞추겠습니다.
+이 문서는 **LLM 서비스가 제공하는** API 명세입니다.
+LLM 서비스가 거꾸로 RAG 서비스(8002)에 **요구하는** 계약은 별도 문서로 분리했습니다.
 
-**요청** `POST http://localhost:8002/v1/search`
-```json
-{ "query": "연차 며칠까지 쓸 수 있나요?", "top_k": 5 }
-```
+→ [RAG_REQUIRED_API.md](RAG_REQUIRED_API.md) (수신자: Member C)
 
-**응답**
-```json
-{
-  "results": [
-    {
-      "doc_id": 12,
-      "original_file_name": "5.근로기준법(법률).pdf",
-      "content": "사용자는 1년간 80퍼센트 이상 출근한 근로자에게 ...",
-      "score": 0.87,
-      "page": 23
-    }
-  ]
-}
-```
-
-- 타임아웃 3초. 초과하거나 실패하면 LLM 서비스는 죽지 않고 문서 없이 답변합니다.
-- `doc_id`, `page`, `score` 는 없어도 됩니다(`null` 허용). `original_file_name` 과 `content` 만 있으면 동작합니다.
-- 아직 준비 전이면 저는 `RAG_MODE=mock` 으로 개발하고 있으니 진도에 구애받지 마세요.
+챗봇 서버 입장에서는 알 필요가 없는 내용이지만, RAG가 죽었을 때 이 서비스가
+`500` 대신 `200 + rag_degraded: true` 로 응답한다는 점만 기억하시면 됩니다.
 
 ---
 

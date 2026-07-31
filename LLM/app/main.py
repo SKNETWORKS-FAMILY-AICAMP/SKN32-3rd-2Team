@@ -78,3 +78,13 @@ async def validation_error_handler(
             "message": "요청 형식이 올바르지 않습니다.",
         },
     )
+
+
+if __name__ == "__main__":
+    # `python -m app.main` 으로 띄우면 .env 의 LLM_SERVICE_PORT 를 그대로 쓴다.
+    # (uvicorn CLI 로 띄울 때는 --port 값이 우선한다)
+    import uvicorn
+
+    from app.config import get_settings
+
+    uvicorn.run(app, host="0.0.0.0", port=get_settings().llm_service_port)
