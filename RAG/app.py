@@ -550,8 +550,92 @@ from pydantic import BaseModel
 
 class SearchRequest(BaseModel):
     query: str
-    doc_id: int
+    # doc_id: int
 
+
+def find_best_document(query: str):
+
+    from langchain_community.vectorstores import FAISS
+
+
+    vector_root = os.path.join(
+        Config.BASE_DIR,
+        "vector_store"
+    )
+
+
+    candidates = []
+
+
+    for doc_id in os.listdir(vector_root):
+
+        doc_path = os.path.join(
+            vector_root,
+            doc_id
+        )
+
+
+        if not os.path.isdir(doc_path):
+            continue
+
+
+        vector_db = FAISS.load_local(
+            doc_path,
+            embedding_model,
+            allow_dangerous_deserialization=True
+        )
+
+
+        docs = vector_db.similarity_search_with_score(
+            query,
+            k=3
+        )
+
+
+        for doc, score in docs:
+
+            candidates.append({
+                "doc_id": doc_id,
+                "content": doc.page_content,
+                "score": score
+            })
+
+
+    if not candidates:
+        return None
+
+
+    # 상위 후보만 reranker
+    candidates = sorted(
+        candidates,
+        key=lambda x:x["score"]
+    )[:20]
+
+
+    pairs = [
+        (
+            query,
+            c["content"]
+        )
+        for c in candidates
+    ]
+
+
+    rerank_scores = reranker_model.predict(
+        pairs
+    )
+
+
+    ranked = sorted(
+        zip(candidates, rerank_scores),
+        key=lambda x:x[1],
+        reverse=True
+    )
+
+
+    return int(
+        ranked[0][0]["doc_id"]
+    )
 
 @app.post("/api/search")
 async def search_vector(request: SearchRequest):
@@ -562,12 +646,26 @@ async def search_vector(request: SearchRequest):
 
 
         # 해당 문서 vector store 경로
+        # vector_path = os.path.join(
+        #     Config.BASE_DIR,
+        #     "vector_store",
+        #     str(request.doc_id)
+        # )
+        doc_id = find_best_document(
+            request.query
+        )
+
+
+        if doc_id is None:
+            raise HTTPException(
+                status_code=404,
+                detail="No relevant document found"
+            )
         vector_path = os.path.join(
             Config.BASE_DIR,
             "vector_store",
-            str(request.doc_id)
+            str(doc_id)
         )
-
 
         if not os.path.exists(vector_path):
             raise HTTPException(
