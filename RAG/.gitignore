@@ -1,0 +1,4 @@
+/venv/
+*/pdf/delete
+*/pdf/tmp
+__pycache__/
