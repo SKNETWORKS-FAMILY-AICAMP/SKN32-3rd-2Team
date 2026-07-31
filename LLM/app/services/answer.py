@@ -20,9 +20,8 @@ from app.errors import LLMServiceError, ProviderTimeout, ProviderUnavailable
 from app.prompts import ANSWER_SYSTEM, build_answer_context
 from app.providers.base import Message
 from app.providers.registry import get_provider
-from app.schemas import ChatRequest, ChatResponse, Source, Usage
+from app.schemas import ChatRequest, ChatResponse, Source
 from app.services import rag_client
-from app.services.naming import generate_name
 from app.services.topic import classify
 
 logger = logging.getLogger(__name__)
@@ -62,55 +61,56 @@ async def generate_answer(req: ChatRequest) -> ChatResponse:
     sources, degraded, rag_ms = await _retrieve(req)
     source_files = [s.original_file_name for s in sources]
 
-    # 답변 생성 / 주제 분류 / (첫 질문이면) 채팅방 이름 생성은 서로 의존하지 않는다.
-    # 한 번에 병렬로 돌려서 WEB 이 같은 message 를 여러 엔드포인트에 다시 보내지 않게 한다.
-    jobs = [
-        provider.generate(
-            system=ANSWER_SYSTEM,
-            messages=_to_messages(req, sources),
-            temperature=0.2,
-        ),
-        classify(req.message, source_files, req.provider),
-    ]
-    if req.generate_name:
-        jobs.append(generate_name(req.message, req.provider))
-
+    # 답변 생성과 주제 분류는 서로 의존하지 않으므로 병렬로 돌린다.
+    # 순차로 하면 분류 지연이 그대로 사용자 대기 시간에 더해진다.
     try:
-        results = await asyncio.wait_for(
-            asyncio.gather(*jobs), timeout=settings.llm_timeout_sec
+        answer_result, (topic, _) = await asyncio.wait_for(
+            asyncio.gather(
+                provider.generate(
+                    system=ANSWER_SYSTEM,
+                    messages=_to_messages(req, sources),
+                    temperature=0.2,
+                ),
+                classify(req.message, source_files, req.provider),
+            ),
+            timeout=settings.llm_timeout_sec,
         )
     except Exception as exc:
-        raise _wrap_provider_error(exc) from exc
+        err = _wrap_provider_error(exc)
+        # 실패도 기록해야 성능 보고서에서 에러율/타임아웃 비율을 낼 수 있다.
+        metrics.record(
+            "chat_error",
+            chatroom_id=req.chatroom_id,
+            error_code=err.error_code,
+            provider=provider.name,
+            model=provider.model,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            rag_ms=rag_ms,
+        )
+        raise err from exc
 
-    answer_result = results[0]
-    topic, _ = results[1]
-    chatroom_name = results[2] if req.generate_name else None
-
-    latency_ms = int((time.perf_counter() - started) * 1000)
-    usage = Usage(
-        provider=provider.name,
-        model=answer_result.model,
-        prompt_tokens=answer_result.prompt_tokens,
-        completion_tokens=answer_result.completion_tokens,
-        latency_ms=latency_ms,
-        rag_ms=rag_ms,
-    )
-    metrics.record(
+    # 계측값은 응답에 넣지 않고 로그로만 남긴다.
+    metrics.record_chat(
         "chat",
         chatroom_id=req.chatroom_id,
         topic=topic,
         rag_degraded=degraded,
         source_count=len(sources),
-        **usage.model_dump(),
+        metrics=metrics.CallMetrics(
+            provider=provider.name,
+            model=answer_result.model,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            prompt_tokens=answer_result.prompt_tokens,
+            completion_tokens=answer_result.completion_tokens,
+            rag_ms=rag_ms,
+        ),
     )
 
     return ChatResponse(
         answer=answer_result.text,
-        sources=sources,
         topic=topic[:TOPIC_MAX_LEN],
+        sources=sources,
         rag_degraded=degraded,
-        chatroom_name=chatroom_name,
-        usage=usage,
     )
 
 
@@ -151,6 +151,15 @@ async def stream_answer(req: ChatRequest) -> AsyncIterator[tuple[str, dict]]:
     except Exception as exc:
         topic_task.cancel()
         err = _wrap_provider_error(exc)
+        metrics.record(
+            "chat_stream_error",
+            chatroom_id=req.chatroom_id,
+            error_code=err.error_code,
+            provider=provider.name,
+            model=provider.model,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            rag_ms=rag_ms,
+        )
         yield "error", {"error_code": err.error_code, "message": err.message}
         return
 
@@ -159,20 +168,18 @@ async def stream_answer(req: ChatRequest) -> AsyncIterator[tuple[str, dict]]:
     except Exception:
         topic = FALLBACK_TOPIC
 
-    latency_ms = int((time.perf_counter() - started) * 1000)
-    usage = Usage(
-        provider=provider.name,
-        model=provider.model,
-        latency_ms=latency_ms,
-        ttft_ms=ttft_ms,
-        rag_ms=rag_ms,
-    )
-    metrics.record(
+    metrics.record_chat(
         "chat_stream",
         chatroom_id=req.chatroom_id,
         topic=topic,
         rag_degraded=degraded,
         source_count=len(sources),
-        **usage.model_dump(),
+        metrics=metrics.CallMetrics(
+            provider=provider.name,
+            model=provider.model,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            ttft_ms=ttft_ms,
+            rag_ms=rag_ms,
+        ),
     )
-    yield "done", {"topic": topic[:TOPIC_MAX_LEN], "usage": usage.model_dump()}
+    yield "done", {"topic": topic[:TOPIC_MAX_LEN]}

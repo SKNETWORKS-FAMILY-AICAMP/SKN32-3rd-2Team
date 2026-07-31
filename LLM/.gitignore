@@ -11,7 +11,8 @@ __pycache__/
 venv/
 env/
 
-# 벤치마크 원본 로그 (보고서만 커밋)
+# 계측/벤치마크 원본 로그 (집계된 보고서만 커밋)
+logs/
 bench/results/
 *.jsonl
 

@@ -10,18 +10,26 @@
 - **Swagger (자동 생성, 항상 최신)**: `http://localhost:8001/docs`
 - 모든 요청/응답 `Content-Type: application/json`, 인코딩 UTF-8
 
-## WEB 파트가 쓸 엔드포인트는 사실상 `/v1/chat` 하나입니다
+## WEB 파트가 쓸 엔드포인트
 
 | | 엔드포인트 | 언제 부르나 |
 |---|---|---|
-| ✅ | `POST /v1/chat` | **사용자가 질문할 때마다.** 답변·출처·주제·(첫 질문이면)채팅방 이름이 **한 번에** 나옵니다 |
+| ✅ | `POST /v1/chat` | **질문할 때마다.** 답변 + 주제 + 근거 문서 |
+| ✅ | `POST /v1/chatroom-name` | **채팅방을 새로 만들고 첫 질문일 때만 한 번** |
 | ✅ | `GET /health` | 상태 확인, 대시보드 카테고리 목록 조회 |
-| 🔧 | `POST /v1/chatroom-name` | **평상시 호출 불필요.** 이름만 다시 뽑고 싶을 때 (6절) |
-| 🔧 | `POST /v1/topic` | **평상시 호출 불필요.** 운영/시연 준비용 (6절) |
-| ⏸ | `POST /v1/chat/stream` | **당장은 안 씁니다.** 나중에 타이핑 효과가 필요해지면 (5절) |
+| 🔧 | `POST /v1/topic` | **평상시 호출 불필요.** 운영/시연 준비용 (7절) |
+| ⏸ | `POST /v1/chat/stream` | **당장은 안 씁니다.** 나중에 타이핑 효과가 필요해지면 (6절) |
 
-> 같은 `message` 를 여러 엔드포인트에 나눠 보낼 필요가 없도록 **`/v1/chat` 하나에 다 넣었습니다.**
-> 내부적으로 답변 생성 · 주제 분류 · 이름 생성을 **병렬로** 돌리기 때문에 지연도 늘지 않습니다.
+### 응답에 계측값(지연·토큰·모델명)은 넣지 않습니다
+
+DB 컬럼도 없고 화면에 쓸 일도 없어서 뺐습니다. 대신 **LLM 서비스 쪽 로그 파일**에 남깁니다.
+
+```
+logs/metrics.jsonl   ← JSONL 한 줄씩. 성능 보고서가 이 파일을 읽어 집계
+콘솔                  ← chat room=... topic=휴가/휴직 docs=2 | openai/gpt-4o-mini 2140ms rag=180ms tok=1523/210
+```
+
+챗봇이 느릴 때 원인이 LLM인지 RAG인지는 제가 이 로그로 확인합니다. WEB에서 신경 쓰실 것 없습니다.
 
 ---
 
@@ -40,9 +48,9 @@
 
 | 이 API의 응답 필드 | 저장 위치 | 컬럼 제약 |
 |---|---|---|
-| `ChatResponse.answer` | `chat.message` (speaker=`llm`) | TEXT |
-| `ChatResponse.topic` | `chat.topic` (**사용자 발화 행**) | VARCHAR(100) — 서버가 보장 |
-| `ChatResponse.chatroom_name` | `chatroom.chatroom_name` | VARCHAR(100) — 서버가 보장 |
+| `/v1/chat` → `answer` | `chat.message` (speaker=`llm`) | TEXT |
+| `/v1/chat` → `topic` | `chat.topic` (**사용자 발화 행**) | VARCHAR(100) — 서버가 보장 |
+| `/v1/chatroom-name` → `name` | `chatroom.chatroom_name` | VARCHAR(100) — 서버가 보장 |
 
 길이 제한은 **LLM 서비스 쪽에서 이미 자르고 보내므로** 챗봇 서버가 추가로 truncate 할 필요 없습니다.
 
@@ -62,7 +70,6 @@
     { "speaker": "user", "message": "안녕하세요" },
     { "speaker": "llm",  "message": "무엇을 도와드릴까요?" }
   ],
-  "generate_name": true,
   "provider": "openai",
   "use_rag": true
 }
@@ -73,7 +80,6 @@
 | `chatroom_id` | string | ✅ | `chatroom.chatroom_id` (UUID) |
 | `message` | string | ✅ | 사용자 질문 |
 | `history` | array | ❌ | 이전 대화. **최근 몇 턴만** 보내면 됩니다(전체 X) |
-| `generate_name` | boolean | ❌ | **채팅방의 첫 질문일 때만 `true`.** 응답에 `chatroom_name` 이 함께 옵니다 |
 | `provider` | `"openai"` \| `"gemini"` | ❌ | 미지정 시 서버 기본값 |
 | `use_rag` | boolean | ❌ | 기본 `true`. `false`면 문서 검색 없이 답변 |
 
@@ -82,6 +88,7 @@
 ```json
 {
   "answer": "연차유급휴가는 근로기준법 제60조에 따라 ...",
+  "topic": "휴가/휴직",
   "sources": [
     {
       "doc_id": 12,
@@ -91,14 +98,7 @@
       "score": 0.87
     }
   ],
-  "topic": "휴가/휴직",
-  "rag_degraded": false,
-  "chatroom_name": "연차 사용 일수 문의",
-  "usage": {
-    "provider": "openai", "model": "gpt-4o-mini",
-    "prompt_tokens": 1523, "completion_tokens": 210,
-    "latency_ms": 2140, "ttft_ms": null, "rag_ms": 180
-  }
+  "rag_degraded": false
 }
 ```
 
@@ -108,29 +108,39 @@
 |---|---|---|
 | `answer` | 답변 본문 | **DB 저장** → `chat.message` (speaker=`llm`) |
 | `topic` | 주제 분류 결과 (8종 중 하나) | **DB 저장** → `chat.topic` (사용자 발화 행) |
-| `chatroom_name` | 채팅방 제목 | **DB 저장** → `chatroom.chatroom_name`. `generate_name` 을 안 보냈으면 `null` 이니 그냥 두면 됩니다 |
-| `sources` | 근거 문서 | **화면 표시.** 답변 하단 "근거 문서" 영역 (스토리보드 13p) |
+| `sources` | 근거 문서 | **화면 표시.** 답변 하단 "근거 문서" 영역 (스토리보드 13p / 사이트맵 7p) |
 | `rag_degraded` | 문서 검색 실패 여부 | **UI 분기.** `true`면 "근거 문서를 찾지 못했습니다" 안내. 저장 불필요 |
-| `usage` | 계측값 (모델·토큰·지연) | **무시해도 됩니다.** 성능 보고서/디버깅용 |
 
-**이 한 번의 호출로 저장에 필요한 값이 전부 나옵니다.** 같은 `message` 를 `/v1/topic` 이나 `/v1/chatroom-name` 에 다시 보낼 필요가 없습니다.
-
-내부적으로 **답변 생성 · 주제 분류 · 이름 생성을 병렬로** 처리하므로 `generate_name: true` 를 넣어도 응답 시간이 늘지 않습니다. (mock 기준 측정: `true` 61ms / `false` 60ms)
+**저장할 건 `answer` 와 `topic` 둘뿐입니다.** 주제를 얻으려고 `/v1/topic` 을 따로 부를 필요가 없습니다 — 내부적으로 답변 생성과 주제 분류를 병렬로 돌려 여기 실어 보냅니다.
 
 `rag_degraded: true` 는 **에러가 아니라 정상 200** 입니다. `sources` 만 빈 배열입니다.
+
+---
+
+## 2. `POST /v1/chatroom-name` — 채팅방 이름 생성
+
+`chatroom.chatroom_name` 의 기본값은 `'새 대화'` 입니다.
+**새 채팅방의 첫 질문일 때만 한 번** 불러 이름을 갱신하면 사이드바가 읽기 좋아집니다.
+두번째 질문부터는 부를 필요가 없습니다.
+
+**Request** `{ "message": "연차 며칠까지 쓸 수 있나요?" }`
+**Response** `{ "name": "연차 사용 일수 문의" }`
+
+- 20자 내외 한국어. 100자를 넘지 않음이 보장됩니다 (`chatroom_name` VARCHAR(100))
+- LLM 호출이 실패해도 500이 아니라 질문 앞부분을 잘라 돌려주므로, **이름이 비는 일은 없습니다**
+- `/v1/chat` 과 **동시에 호출해도 됩니다.** 서로 독립적이라 순서를 기다릴 필요가 없습니다
 
 ### 호출 패턴 요약
 
 ```
-채팅방 첫 질문   → POST /v1/chat  { ..., "generate_name": true }
-                   → answer + topic + chatroom_name 저장
-두번째 질문부터  → POST /v1/chat  { ..., "history": [...] }
-                   → answer + topic 저장 (chatroom_name 은 null)
+채팅방 첫 질문   → POST /v1/chat            → answer + topic 저장
+                 → POST /v1/chatroom-name   → chatroom_name 저장
+두번째 질문부터  → POST /v1/chat            → answer + topic 저장
 ```
 
 ---
 
-## 2. `GET /health`
+## 3. `GET /health`
 
 ```json
 {
@@ -146,7 +156,7 @@
 
 ---
 
-## 3. 주제(topic) 카테고리 — ⚠️ 대시보드 담당자 확인 필요
+## 4. 주제(topic) 카테고리 — ⚠️ 대시보드 담당자 확인 필요
 
 `chat.topic` 은 **항상 아래 8개 중 하나**입니다. 자유 문자열이 절대 나오지 않습니다.
 
@@ -184,7 +194,7 @@ GROUP BY topic;
 
 ---
 
-## 4. 에러 규약
+## 5. 에러 규약
 
 에러는 HTTP 상태코드와 함께 **항상** 아래 형태로 옵니다.
 
@@ -206,7 +216,7 @@ GROUP BY topic;
 
 ---
 
-## 5. ⏸ `POST /v1/chat/stream` — 지금은 쓰지 않음
+## 6. ⏸ `POST /v1/chat/stream` — 지금은 쓰지 않음
 
 구현은 되어 있으나 **1차 구현에서는 `/v1/chat` 만 씁니다.** 나중에 타이핑 효과가 필요해지면 그때 붙이면 됩니다.
 
@@ -222,8 +232,10 @@ event: token
 data: {"delta":"연차유급"}
 
 event: done
-data: {"topic":"휴가/휴직","usage":{...,"ttft_ms":410}}
+data: {"topic":"휴가/휴직"}
 ```
+
+`delta` 를 순서대로 이어붙인 것이 곧 `chat.message` 에 저장할 답변 전문입니다.
 
 실패 시 `done` 대신 `error` 이벤트가 옵니다.
 
@@ -233,36 +245,24 @@ data: {"topic":"휴가/휴직","usage":{...,"ttft_ms":410}}
 
 ---
 
-## 6. 🔧 단독 엔드포인트 — 평상시 호출 불필요
+## 7. 🔧 `POST /v1/topic` — 평상시 호출 불필요
 
-아래 둘은 **일반 대화 흐름에서는 부르지 마세요.** `/v1/chat` 이 이미 같은 값을 응답에 실어 보내므로,
+**일반 대화 흐름에서는 부르지 마세요.** `/v1/chat` 응답에 `topic` 이 이미 들어 있어서,
 따로 부르면 같은 `message` 를 두 번 보내면서 LLM 호출만 한 번 더 나갑니다.
-
-일회성 배치나 예외 상황용으로만 남겨둔 것이라 **화면 코드가 아니라 스크립트에서 부르는 용도**입니다.
-
-### `POST /v1/topic` — 주제 분류
 
 **Request** `{ "message": "...", "source_files": ["복무규정.pdf"] }` (`source_files` 는 선택, 분류 힌트)
 **Response** `{ "topic": "휴가/휴직", "cached": false }`
 
-남겨둔 이유:
-1. **카테고리 목록이 바뀌었을 때 과거 데이터 재분류.** 3절 8종은 아직 팀 확정 전이라, 바뀌면 기존 `chat` 행의 `topic` 이 옛 기준으로 남습니다. 도넛 차트를 일관되게 그리려면 과거 질문을 다시 분류해야 합니다.
+남겨둔 이유는 두 가지이고, 둘 다 일회성 배치라 **화면 코드가 아니라 스크립트에서 부르는 용도**입니다.
+
+1. **카테고리 목록이 바뀌었을 때 과거 데이터 재분류.** 4절 8종은 아직 팀 확정 전이라, 바뀌면 기존 `chat` 행의 `topic` 이 옛 기준으로 남습니다. 도넛 차트를 일관되게 그리려면 과거 질문을 다시 분류해야 합니다.
 2. **발표용 더미 데이터 채우기.** 대시보드 시연에 데이터가 필요한데, 답변까지 생성하면 시간·비용이 듭니다. 질문만 넣어 `topic` 만 뽑는 게 훨씬 쌉니다.
 
-### `POST /v1/chatroom-name` — 채팅방 이름 생성
-
-**Request** `{ "message": "연차 며칠까지 쓸 수 있나요?" }`
-**Response** `{ "name": "연차 사용 일수 문의" }`
-
-남겨둔 이유: 이미 있는 채팅방의 이름만 다시 뽑고 싶을 때 (예: 사용자가 "이름 다시 지어줘" 를 누르는 기능).
-**첫 질문 때는 `/v1/chat` 에 `generate_name: true` 를 넣는 쪽을 쓰세요.**
-
-두 엔드포인트 모두 LLM 호출이 실패해도 500이 아니라 폴백 값을 돌려줍니다
-(`topic` → `기타`, `name` → 질문 앞부분).
+LLM 호출이 실패해도 500이 아니라 `기타` 로 폴백합니다.
 
 ---
 
-## 7. LLM 서비스가 RAG에 요청하는 계약
+## 8. LLM 서비스가 RAG에 요청하는 계약
 
 이 문서는 **LLM 서비스가 제공하는** API 명세입니다.
 거꾸로 RAG 서비스(8002)에 **요구하는** 계약은 별도 문서로 분리했습니다.
@@ -274,7 +274,7 @@ data: {"topic":"휴가/휴직","usage":{...,"ttft_ms":410}}
 
 ---
 
-## 8. 로컬 실행
+## 9. 로컬 실행
 
 ```bash
 cd LLM

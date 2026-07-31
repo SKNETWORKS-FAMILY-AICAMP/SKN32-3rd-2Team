@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -21,9 +22,16 @@ from app.errors import LLMServiceError
 from app.routers import chat, meta
 from app.services import rag_client
 
+# 한국어 Windows 는 콘솔 기본 인코딩이 cp949 라, 로그를 파일로 리다이렉트한 뒤
+# UTF-8 로 읽으면 한글이 깨진다. 출력 스트림을 UTF-8 로 고정한다.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    stream=sys.stdout,
 )
 
 

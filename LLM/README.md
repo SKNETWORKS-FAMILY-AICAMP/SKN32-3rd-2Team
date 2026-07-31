@@ -71,7 +71,7 @@ RAG_MODE=mock     # RAG 서비스 호출 안 함
 | `RAG_MODE` | `mock` | `live` 면 실제 RAG 서비스 호출 |
 | `RAG_BASE_URL` | `http://localhost:8002` | |
 | `RAG_TIMEOUT_SEC` / `RAG_TOP_K` | `3.0` / `5` | |
-| `METRICS_ENABLED` / `METRICS_PATH` | `true` / `bench/results/metrics.jsonl` | 성능 보고서 입력 |
+| `METRICS_ENABLED` / `METRICS_PATH` | `true` / `logs/metrics.jsonl` | 계측 로그. 성능 보고서 입력 |
 
 `.env` 는 `.gitignore` 에 있으므로 **API 키가 커밋될 일은 없다.**
 
@@ -127,6 +127,18 @@ app/
 
 서로 의존하지 않으므로 `asyncio.gather` 로 병렬 실행한다. 순차로 하면 분류 지연이 그대로 사용자 대기 시간에 더해진다.
 
+### 계측값은 응답이 아니라 로그로 나간다
+
+지연·토큰·모델명은 API 응답에 넣지 않는다. 대응하는 DB 컬럼이 없고 화면에 쓸 일도 없어서,
+`METRICS_PATH` 의 JSONL 파일과 콘솔 로그에만 남긴다. WEB 이 받는 건 실제로 저장·표시할 값뿐이다.
+
+```
+2026-07-31 15:08:16 INFO [llm.metrics] chat room=r topic=휴가/휴직 docs=2 | openai/gpt-4o-mini 2140ms rag=180ms tok=1523/210
+```
+
+성능 보고서(`bench/report.py`)는 이 JSONL 을 읽어 집계한다.
+한국어 Windows 콘솔이 cp949 라 로그를 파일로 리다이렉트하면 한글이 깨지므로, 출력 스트림을 UTF-8 로 고정해 두었다.
+
 ---
 
 ## 검증 완료 항목
@@ -136,7 +148,9 @@ app/
 | 항목 | 결과 |
 |---|---|
 | 5개 엔드포인트 OpenAPI 등록 | ✅ |
-| `/v1/chat` 200 + topic + sources | ✅ |
+| `/v1/chat` 응답이 `answer` / `topic` / `sources` / `rag_degraded` 4개뿐 | ✅ |
+| 계측값이 응답에 없고 `logs/metrics.jsonl` + 콘솔에만 기록 | ✅ |
+| 로그 파일이 UTF-8 로 읽힘 (cp949 깨짐 없음) | ✅ |
 | `/v1/chat/stream` 이벤트 순서 `sources → token×N → done` | ✅ |
 | 패러프레이즈 7종이 모두 enum 8종 안으로 분류 | ✅ |
 | 정규화 캐시 적중 (`"연차 며칠?"` == `"  연차 며칠???  "`) | ✅ |

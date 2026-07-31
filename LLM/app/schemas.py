@@ -33,18 +33,6 @@ class Source(BaseModel):
     score: float | None = Field(None, description="검색 유사도 점수")
 
 
-class Usage(BaseModel):
-    """계측값. 성능 보고서 입력이자 디버깅용."""
-
-    provider: ProviderName
-    model: str
-    prompt_tokens: int | None = None
-    completion_tokens: int | None = None
-    latency_ms: int
-    ttft_ms: int | None = Field(None, description="첫 토큰까지 걸린 시간. 스트리밍에서만 측정")
-    rag_ms: int | None = Field(None, description="RAG 검색에 걸린 시간")
-
-
 class ChatRequest(BaseModel):
     chatroom_id: str = Field(..., description="chatroom.chatroom_id (UUID)")
     message: str = Field(..., min_length=1, description="사용자 질문")
@@ -56,38 +44,34 @@ class ChatRequest(BaseModel):
         None, description="미지정 시 서버 기본값(DEFAULT_PROVIDER) 사용"
     )
     use_rag: bool = Field(True, description="false면 문서 검색 없이 답변")
-    generate_name: bool = Field(
-        False,
-        description=(
-            "채팅방의 첫 질문일 때 true. 응답의 chatroom_name 으로 "
-            "chatroom.chatroom_name 을 갱신하면 된다. "
-            "답변 생성과 병렬로 처리되므로 지연이 늘지 않는다."
-        ),
-    )
 
 
 class ChatResponse(BaseModel):
-    answer: str = Field(..., description="chat.message 에 그대로 저장")
-    sources: list[Source] = Field(
-        default_factory=list,
-        description="근거 문서. RAG 실패 시에도 500 대신 빈 배열로 응답한다.",
-    )
+    """WEB 이 실제로 쓰는 값만 담는다.
+
+    지연·토큰·모델명 같은 계측값은 응답에 넣지 않는다. DB 컬럼도 없고 화면에
+    쓸 일도 없어서, 서버 로그 파일(`METRICS_PATH`)에만 남긴다.
+    """
+
+    answer: str = Field(..., description="chat.message 에 그대로 저장 (speaker='llm')")
     topic: str = Field(
         ...,
-        description=f"chat.topic 에 그대로 저장. 항상 다음 중 하나: {', '.join(TOPIC_CATEGORIES)}",
-    )
-    rag_degraded: bool = Field(
-        False, description="true면 RAG 검색에 실패해 문서 없이 생성된 답변"
-    )
-    chatroom_name: str | None = Field(
-        None,
         description=(
-            "요청에 generate_name=true 를 넣었을 때만 채워진다. "
-            "chatroom.chatroom_name 에 그대로 저장 (100자 이내 보장). "
-            "generate_name 을 안 넣었으면 null 이며, 채팅방 이름은 건드리지 않으면 된다."
+            "chat.topic 에 그대로 저장 (사용자 발화 행). "
+            f"항상 다음 중 하나: {', '.join(TOPIC_CATEGORIES)}"
         ),
     )
-    usage: Usage
+    sources: list[Source] = Field(
+        default_factory=list,
+        description=(
+            "근거 문서. 답변 하단에 문서명을 노출하는 데 쓴다(스토리보드 13p). "
+            "RAG 실패 시에도 500 대신 빈 배열로 응답한다."
+        ),
+    )
+    rag_degraded: bool = Field(
+        False,
+        description="true면 RAG 검색에 실패해 문서 없이 생성된 답변. 저장 불필요, UI 안내용",
+    )
 
 
 class TopicRequest(BaseModel):

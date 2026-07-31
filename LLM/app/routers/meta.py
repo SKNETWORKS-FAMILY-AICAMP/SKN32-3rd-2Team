@@ -40,7 +40,12 @@ async def topic(req: TopicRequest) -> TopicResponse:
     "/v1/chatroom-name", response_model=ChatroomNameResponse, summary="채팅방 이름 생성"
 )
 async def chatroom_name(req: ChatroomNameRequest) -> ChatroomNameResponse:
-    """`chatroom.chatroom_name` 용. 첫 질문으로 20자 내외 제목을 만든다."""
+    """`chatroom.chatroom_name` 용. 첫 질문으로 20자 내외 제목을 만든다.
+
+    새 채팅방의 **첫 질문 때만** 호출한다. 두번째 질문부터는 부를 필요가 없다.
+    LLM 호출이 실패해도 500 대신 질문 앞부분을 잘라 돌려주므로,
+    채팅방 이름이 비는 일은 없다.
+    """
     return ChatroomNameResponse(name=await generate_name(req.message, req.provider))
 
 

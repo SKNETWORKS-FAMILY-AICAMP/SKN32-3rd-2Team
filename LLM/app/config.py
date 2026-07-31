@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     rag_top_k: int = 5
 
     # --- 계측 ---
-    metrics_path: str = "bench/results/metrics.jsonl"
+    metrics_path: str = "logs/metrics.jsonl"
     metrics_enabled: bool = True
 
     def is_configured(self, provider: str) -> bool:
