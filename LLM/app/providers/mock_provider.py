@@ -87,7 +87,12 @@ class MockProvider(LLMProvider):
         user_content: str,
         allowed: Sequence[str],
     ) -> str:
+        # user_content 에는 질문 뒤에 "참고로 검색된 문서: ..." 힌트가 붙는다.
+        # 실제 LLM 은 "문서 이름이 아니라 질문 의도로 판단하라"는 지시를 받으므로,
+        # mock 도 질문 부분만 본다. 문서명까지 매칭하면 "그럼 반차는?" 이 검색된
+        # 복무규정.pdf 때문에 복무/징계 로 분류되는 식으로 실제와 어긋난다.
+        question = user_content.split("\n", 1)[0]
         for category, keywords in _KEYWORD_RULES:
-            if category in allowed and any(k in user_content for k in keywords):
+            if category in allowed and any(k in question for k in keywords):
                 return category
         return "기타"
