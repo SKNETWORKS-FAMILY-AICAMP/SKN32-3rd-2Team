@@ -21,8 +21,9 @@ from .auth import (
     require_login,
     verify_password,
 )
-from .database import Base, engine, get_db
+from .database import get_db
 from .models import User
+from app.admin.user_router import router as users_router
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -37,6 +38,7 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+app.include_router(users_router)
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 USER_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{4,20}$")

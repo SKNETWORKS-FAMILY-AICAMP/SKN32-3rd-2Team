@@ -1,7 +1,7 @@
 import time
 
 import bcrypt
-from fastapi import Request
+from fastapi import Request, HTTPException, status
 from fastapi.responses import RedirectResponse
 
 # 세션 유효 시간: 3시간
@@ -54,3 +54,37 @@ def require_login(request: Request):
     if user is None:
         return None, RedirectResponse(url="/login", status_code=303)
     return user, None
+
+def require_login_api(request: Request):
+    """API 라우트에서 로그인 여부를 검사하고, 미로그인 시 401을 반환한다."""
+    user = get_current_user(request)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="로그인이 필요합니다."
+        )
+
+    return user
+
+
+def require_admin(request: Request):
+    """관리자 전용 페이지 라우트에서 로그인 및 관리자 권한을 검사한다.
+    미로그인 시 로그인 화면으로, 관리자가 아니면 메인 화면으로 리다이렉트한다."""
+    user = get_current_user(request)
+    if user is None:
+        return None, RedirectResponse(url="/login", status_code=303)
+    if not user.get("is_admin"):
+        return None, RedirectResponse(url="/main", status_code=303)
+    return user, None
+
+
+def require_admin_api(request: Request):
+    """관리자 전용 API 라우트에서 로그인 및 관리자 권한을 검사한다.
+    미로그인 시 401, 관리자가 아니면 403을 반환한다."""
+    user = require_login_api(request)
+    if not user.get("is_admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="관리자만 접근할 수 있습니다."
+        )
+    return user

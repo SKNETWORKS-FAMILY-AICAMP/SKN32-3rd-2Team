@@ -1,0 +1,54 @@
+{% extends "layout/app_base.html" %}
+
+{% block title %}유저 관리{% endblock %}
+
+{% block content %}
+<div class="admin-panel">
+  <h1 class="panel-title">유저 관리</h1>
+
+  <div class="filter-bar">
+    <input id="f-name" type="text" placeholder="이름 검색">
+    <input id="f-department" type="text" placeholder="부서 검색">
+    <select id="f-is-admin">
+      <option value="">전체 권한</option>
+      <option value="true">관리자</option>
+      <option value="false">일반</option>
+    </select>
+    <select id="f-is-disabled">
+      <option value="">전체 상태</option>
+      <option value="false">활성</option>
+      <option value="true">비활성</option>
+    </select>
+    <button type="button" id="f-search" class="btn-secondary">검색</button>
+  </div>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>이름</th>
+        <th>부서</th>
+        <th>상태</th>
+        <th>권한</th>
+        <th>가입일</th>
+      </tr>
+    </thead>
+    <tbody id="user-list">
+      {% for u in user_list['items'] %}
+      <tr>
+        <td>{{ u.id }}</td>
+        <td>{{ u.name }}</td>
+        <td>{{ u.department }}</td>
+        <td><span class="badge {{ 'badge-off' if u.is_disabled else 'badge-on' }}">{{ "비활성" if u.is_disabled else "활성" }}</span></td>
+        <td>{{ "관리자" if u.is_admin else "일반" }}</td>
+        <td>{{ u.created_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div id="pagination" class="pagination"></div>
+</div>
+
+<script src="/static/js/users.js"></script>
+{% endblock %}
