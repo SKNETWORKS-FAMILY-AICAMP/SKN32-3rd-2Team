@@ -69,6 +69,12 @@ RAG_MODE=mock     # RAG 서비스 호출 안 함
 
 `.env` 는 `.gitignore` 에 있으므로 **API 키가 커밋될 일은 없다.**
 
+`config.py` 에 설정을 추가했으면 `.env.example` 갱신을 잊지 않도록 아래로 확인한다.
+
+```bash
+python scripts/check_env_example.py
+```
+
 ---
 
 ## 폴더 구조
