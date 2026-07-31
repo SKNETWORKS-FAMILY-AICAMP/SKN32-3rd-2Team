@@ -1,0 +1,23 @@
+# === 절대 커밋 금지: API 키 ===
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# 계측/벤치마크 원본 로그 (집계된 보고서만 커밋)
+logs/
+bench/results/
+*.jsonl
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
