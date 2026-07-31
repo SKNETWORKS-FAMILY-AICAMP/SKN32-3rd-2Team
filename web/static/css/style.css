@@ -165,13 +165,13 @@ a:focus-visible {
   text-align: center;
 }
 
-.brand {
-  margin-bottom: 32px;
+.brand .brand-logo {
+  height: 66px;
+  width: auto;
 }
 
-.brand-logo,
-.brand-logo-login {
-  height: 34px;
+.brand .brand-logo-login {
+  height: 160px;
   width: auto;
 }
 
