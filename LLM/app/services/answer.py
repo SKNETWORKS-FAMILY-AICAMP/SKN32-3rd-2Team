@@ -106,7 +106,7 @@ async def generate_answer(req: ChatRequest) -> ChatResponse:
     except Exception as exc:
         err = _wrap_provider_error(exc)
         # 실패도 기록해야 성능 보고서에서 에러율/타임아웃 비율을 낼 수 있다.
-        metrics.record(
+        metrics.record_error(
             "chat_error",
             chatroom_id=req.chatroom_id,
             error_code=err.error_code,
@@ -180,7 +180,7 @@ async def stream_answer(req: ChatRequest) -> AsyncIterator[tuple[str, dict]]:
     except Exception as exc:
         topic_task.cancel()
         err = _wrap_provider_error(exc)
-        metrics.record(
+        metrics.record_error(
             "chat_stream_error",
             chatroom_id=req.chatroom_id,
             error_code=err.error_code,

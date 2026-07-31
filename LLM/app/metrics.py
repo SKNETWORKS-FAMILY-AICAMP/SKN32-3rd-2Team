@@ -15,7 +15,7 @@ import json
 import logging
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from app.config import get_settings
@@ -54,7 +54,11 @@ def record(event: str, **fields: Any) -> None:
     try:
         path = settings.metrics_file
         path.parent.mkdir(parents=True, exist_ok=True)
-        row = {"ts": datetime.now(timezone.utc).isoformat(), "event": event, **fields}
+        # 로컬 시각 + UTC 오프셋(예: 2026-07-31T15:08:16.490+09:00).
+        # UTC 로만 남기면 콘솔 로그(로컬 시각)나 DB 의 created_at(MySQL CURRENT_TIMESTAMP,
+        # 서버 로컬)과 대조할 때 매번 시차를 계산해야 한다. 오프셋을 붙여
+        # 읽기 쉬우면서도 해석이 모호하지 않게 한다.
+        row = {"ts": datetime.now().astimezone().isoformat(), "event": event, **fields}
         with path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
     except Exception as exc:  # pragma: no cover - 계측 실패는 무시
@@ -64,7 +68,7 @@ def record(event: str, **fields: Any) -> None:
 def record_chat(
     event: str,
     *,
-    chatroom_id: str | None,
+    chatroom_id: str,
     topic: str,
     rag_degraded: bool,
     source_count: int,
@@ -80,7 +84,7 @@ def record_chat(
     logger.info(
         "%s room=%s topic=%s docs=%d%s | %s",
         event,
-        chatroom_id or "-",  # WEB 이 안 보내면 대화 단위 추적만 안 될 뿐, 나머지는 그대로
+        chatroom_id,
         topic,
         source_count,
         " (RAG 실패)" if rag_degraded else "",
@@ -94,4 +98,33 @@ def record_chat(
         source_count=source_count,
         source_files=list(source_files),
         **asdict(metrics),
+    )
+
+
+def record_error(
+    event: str,
+    *,
+    chatroom_id: str,
+    error_code: str,
+    provider: str,
+    model: str,
+    latency_ms: int,
+    rag_ms: int | None = None,
+) -> None:
+    """실패한 요청을 기록한다.
+
+    성공과 마찬가지로 콘솔에도 한 줄 남긴다. JSONL 에만 남기면 시연 중 실패했을 때
+    터미널에는 아무것도 안 보여서 바로 알아차릴 수 없다.
+    """
+    logger.warning(
+        "%s room=%s %s | %s/%s %dms", event, chatroom_id, error_code, provider, model, latency_ms
+    )
+    record(
+        event,
+        chatroom_id=chatroom_id,
+        error_code=error_code,
+        provider=provider,
+        model=model,
+        latency_ms=latency_ms,
+        rag_ms=rag_ms,
     )
