@@ -7,13 +7,18 @@ import json
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
-from app.schemas import ChatRequest, ChatResponse
+from app.schemas import ERROR_RESPONSES, ChatRequest, ChatResponse
 from app.services.answer import generate_answer, stream_answer
 
 router = APIRouter(prefix="/v1", tags=["chat"])
 
 
-@router.post("/chat", response_model=ChatResponse, summary="답변 생성")
+@router.post(
+    "/chat",
+    response_model=ChatResponse,
+    responses=ERROR_RESPONSES,
+    summary="답변 생성",
+)
 async def chat(req: ChatRequest) -> ChatResponse:
     """질문에 대한 답변 + 근거 문서 + 주제를 한 번에 반환한다.
 

@@ -8,6 +8,7 @@ from app.config import get_settings
 from app.domain import TOPIC_CATEGORIES, TOPIC_MAX_LEN
 from app.providers.registry import SUPPORTED
 from app.schemas import (
+    ERROR_RESPONSES,
     ChatroomNameRequest,
     ChatroomNameResponse,
     HealthResponse,
@@ -21,7 +22,12 @@ from app.services.topic import classify
 router = APIRouter(tags=["meta"])
 
 
-@router.post("/v1/topic", response_model=TopicResponse, summary="[운영용] 주제 분류")
+@router.post(
+    "/v1/topic",
+    response_model=TopicResponse,
+    responses=ERROR_RESPONSES,
+    summary="[운영용] 주제 분류",
+)
 async def topic(req: TopicRequest) -> TopicResponse:
     """`chat.topic` 용. 항상 고정 카테고리 중 하나만 반환한다.
 
@@ -37,7 +43,10 @@ async def topic(req: TopicRequest) -> TopicResponse:
 
 
 @router.post(
-    "/v1/chatroom-name", response_model=ChatroomNameResponse, summary="채팅방 이름 생성"
+    "/v1/chatroom-name",
+    response_model=ChatroomNameResponse,
+    responses=ERROR_RESPONSES,
+    summary="채팅방 이름 생성",
 )
 async def chatroom_name(req: ChatroomNameRequest) -> ChatroomNameResponse:
     """`chatroom.chatroom_name` 용. 첫 질문으로 20자 내외 제목을 만든다.

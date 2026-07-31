@@ -270,21 +270,35 @@ GROUP BY topic;
 
 ## 5. 에러 규약
 
-에러는 HTTP 상태코드와 함께 **항상** 아래 형태로 옵니다.
+모든 에러는 **형태가 같습니다.** 상황에 따라 HTTP 상태코드와 두 값이 달라질 뿐입니다.
 
 ```json
-{ "error_code": "LLM_TIMEOUT", "message": "일시적인 오류입니다. 잠시 후 다시 시도해주세요." }
+{ "error_code": "...", "message": "..." }
 ```
 
-`message` 는 **프론트에 그대로 출력해도 되는 한국어**입니다. 별도 매핑 테이블을 만들 필요 없습니다.
+- `error_code` — 프로그램이 분기할 때 쓰는 고정 문자열. **아래 5개가 전부**입니다
+- `message` — **프론트에 그대로 출력해도 되는 한국어.** 에러마다 문구가 다릅니다
 
-| HTTP | `error_code` | 상황 |
-|---|---|---|
-| 504 | `LLM_TIMEOUT` | 생성이 `LLM_TIMEOUT_SEC`(기본 5초) 초과. 스토리보드 13p 요구사항 대응 |
-| 503 | `LLM_UNAVAILABLE` | 프로바이더 API 호출 실패 (장애/쿼터) |
-| 503 | `PROVIDER_NOT_CONFIGURED` | 해당 프로바이더 API 키 미설정 |
-| 422 | `INVALID_REQUEST` | 요청 스키마 위반 |
-| 500 | `INTERNAL_ERROR` | 그 외 |
+즉 화면 처리는 이 한 줄이면 끝납니다. 코드별 메시지 매핑 테이블을 만들 필요가 없습니다.
+
+```js
+if (!res.ok) showError(body.message);
+```
+
+### 실제로 나가는 5가지
+
+| HTTP | `error_code` | 실제 `message` | 언제 |
+|---|---|---|---|
+| 504 | `LLM_TIMEOUT` | 일시적인 오류입니다. 잠시 후 다시 시도해주세요. | 생성이 5초 초과 (스토리보드 13p 대응) |
+| 503 | `LLM_UNAVAILABLE` | AI 응답 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요. | OpenAI/Gemini 장애·쿼터 초과·인증 실패 |
+| 503 | `PROVIDER_NOT_CONFIGURED` | AI 응답 서비스가 아직 설정되지 않았습니다. 관리자에게 문의해주세요. | 서버에 API 키 미설정 |
+| 422 | `INVALID_REQUEST` | 요청 형식이 올바르지 않습니다. | `chatroom_id` 나 `message` 누락 등 |
+| 500 | `INTERNAL_ERROR` | 일시적인 오류입니다. 잠시 후 다시 시도해주세요. | 위에 해당하지 않는 예상 밖 오류 |
+
+> `message` 문구를 바꾸고 싶으시면 말씀해 주세요. `app/errors.py` 한 곳에 모여 있습니다.
+
+`error_code` 로 분기하고 싶다면 `LLM_TIMEOUT` 정도만 따로 처리하면 충분합니다
+(예: 재시도 버튼 노출). 나머지는 `message` 를 그대로 띄우면 됩니다.
 
 **RAG 실패는 에러가 아닙니다.** `200` + `rag_degraded: true` + `sources: []` 로 내려갑니다.
 

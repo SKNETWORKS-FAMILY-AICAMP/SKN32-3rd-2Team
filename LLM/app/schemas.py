@@ -139,5 +139,21 @@ class ErrorResponse(BaseModel):
         "PROVIDER_NOT_CONFIGURED",
         "INVALID_REQUEST",
         "INTERNAL_ERROR",
-    ]
-    message: str
+    ] = Field(..., description="프로그램이 분기할 때 쓰는 고정 문자열")
+    message: str = Field(
+        ..., description="프론트에 그대로 출력해도 되는 한국어. 에러마다 문구가 다르다"
+    )
+
+
+# 라우트에 붙여 Swagger 가 에러 형태까지 보여주게 한다.
+# 이게 없으면 /docs 에 성공 응답만 나와서, WEB 담당자가 에러 형태를 문서에서만
+# 확인할 수 있다.
+ERROR_RESPONSES: dict = {
+    422: {"model": ErrorResponse, "description": "요청 형식 오류 — INVALID_REQUEST"},
+    500: {"model": ErrorResponse, "description": "예상 밖 오류 — INTERNAL_ERROR"},
+    503: {
+        "model": ErrorResponse,
+        "description": "프로바이더 장애 또는 키 미설정 — LLM_UNAVAILABLE / PROVIDER_NOT_CONFIGURED",
+    },
+    504: {"model": ErrorResponse, "description": "생성 타임아웃 — LLM_TIMEOUT"},
+}
