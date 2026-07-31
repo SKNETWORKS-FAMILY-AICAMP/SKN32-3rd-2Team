@@ -152,6 +152,7 @@ logs/metrics.jsonl   ← JSONL 한 줄씩. 성능 보고서가 이 파일을 읽
 
 ```json
 {
+  "chatroom_id": "3f1c...-uuid",
   "message": "그럼 반차는?",
   "history": [
     { "speaker": "user", "message": "연차 며칠까지 쓸 수 있나요?" },
