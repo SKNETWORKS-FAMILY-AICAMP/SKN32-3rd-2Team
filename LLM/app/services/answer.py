@@ -22,6 +22,7 @@ from app.providers.base import Message
 from app.providers.registry import get_provider
 from app.schemas import ChatRequest, ChatResponse, Source, Usage
 from app.services import rag_client
+from app.services.naming import generate_name
 from app.services.topic import classify
 
 logger = logging.getLogger(__name__)
@@ -61,20 +62,29 @@ async def generate_answer(req: ChatRequest) -> ChatResponse:
     sources, degraded, rag_ms = await _retrieve(req)
     source_files = [s.original_file_name for s in sources]
 
+    # 답변 생성 / 주제 분류 / (첫 질문이면) 채팅방 이름 생성은 서로 의존하지 않는다.
+    # 한 번에 병렬로 돌려서 WEB 이 같은 message 를 여러 엔드포인트에 다시 보내지 않게 한다.
+    jobs = [
+        provider.generate(
+            system=ANSWER_SYSTEM,
+            messages=_to_messages(req, sources),
+            temperature=0.2,
+        ),
+        classify(req.message, source_files, req.provider),
+    ]
+    if req.generate_name:
+        jobs.append(generate_name(req.message, req.provider))
+
     try:
-        answer_result, (topic, _) = await asyncio.wait_for(
-            asyncio.gather(
-                provider.generate(
-                    system=ANSWER_SYSTEM,
-                    messages=_to_messages(req, sources),
-                    temperature=0.2,
-                ),
-                classify(req.message, source_files, req.provider),
-            ),
-            timeout=settings.llm_timeout_sec,
+        results = await asyncio.wait_for(
+            asyncio.gather(*jobs), timeout=settings.llm_timeout_sec
         )
     except Exception as exc:
         raise _wrap_provider_error(exc) from exc
+
+    answer_result = results[0]
+    topic, _ = results[1]
+    chatroom_name = results[2] if req.generate_name else None
 
     latency_ms = int((time.perf_counter() - started) * 1000)
     usage = Usage(
@@ -99,6 +109,7 @@ async def generate_answer(req: ChatRequest) -> ChatResponse:
         sources=sources,
         topic=topic[:TOPIC_MAX_LEN],
         rag_degraded=degraded,
+        chatroom_name=chatroom_name,
         usage=usage,
     )
 

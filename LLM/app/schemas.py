@@ -56,6 +56,14 @@ class ChatRequest(BaseModel):
         None, description="미지정 시 서버 기본값(DEFAULT_PROVIDER) 사용"
     )
     use_rag: bool = Field(True, description="false면 문서 검색 없이 답변")
+    generate_name: bool = Field(
+        False,
+        description=(
+            "채팅방의 첫 질문일 때 true. 응답의 chatroom_name 으로 "
+            "chatroom.chatroom_name 을 갱신하면 된다. "
+            "답변 생성과 병렬로 처리되므로 지연이 늘지 않는다."
+        ),
+    )
 
 
 class ChatResponse(BaseModel):
@@ -70,6 +78,14 @@ class ChatResponse(BaseModel):
     )
     rag_degraded: bool = Field(
         False, description="true면 RAG 검색에 실패해 문서 없이 생성된 답변"
+    )
+    chatroom_name: str | None = Field(
+        None,
+        description=(
+            "요청에 generate_name=true 를 넣었을 때만 채워진다. "
+            "chatroom.chatroom_name 에 그대로 저장 (100자 이내 보장). "
+            "generate_name 을 안 넣었으면 null 이며, 채팅방 이름은 건드리지 않으면 된다."
+        ),
     )
     usage: Usage
 
