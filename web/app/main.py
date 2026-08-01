@@ -24,7 +24,9 @@ from .auth import (
 from .database import get_db
 from .models import User
 from .services.user_service import record_login
+from app.admin.stats_router import router as stats_router
 from app.admin.user_router import router as users_router
+from app.chat.chat_router import router as chat_router
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -40,6 +42,8 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 app.include_router(users_router)
+app.include_router(stats_router)
+app.include_router(chat_router)
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 USER_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{4,20}$")
@@ -152,6 +156,6 @@ def main_page(request: Request):
         return redirect
 
     if user.get("is_admin"):
-        return templates.TemplateResponse(request, "/admin/dashboard.html", {"user": user})
+        return RedirectResponse(url="/admin/stats", status_code=303)
 
     return templates.TemplateResponse(request, "main.html", {"user": user, "active": "chat_new"})

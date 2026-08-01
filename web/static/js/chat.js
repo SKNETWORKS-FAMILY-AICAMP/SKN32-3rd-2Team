@@ -1,0 +1,78 @@
+document.addEventListener("DOMContentLoaded", function () {
+  const page = document.querySelector(".chat-page");
+  if (!page) return;
+
+  let chatroomId = page.dataset.chatroomId || null;
+  const messagesEl = document.getElementById("chat-messages");
+  const form = document.getElementById("chat-form");
+  const input = document.getElementById("chat-input");
+
+  if (chatroomId) {
+    loadMessages(chatroomId);
+  }
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+
+    const text = input.value.trim();
+    if (!text) return;
+
+    input.value = "";
+    appendMessage("user", text);
+
+    if (!chatroomId) {
+      const room = await createChatroom();
+      if (!room) {
+        appendMessage("llm", "대화방을 생성하지 못했습니다. 잠시 후 다시 시도해주세요.");
+        return;
+      }
+      chatroomId = room.chatroom_id;
+      page.dataset.chatroomId = chatroomId;
+      window.history.replaceState(null, "", `/chat/${chatroomId}`);
+    }
+
+    const typingEl = appendMessage("llm", "…", true);
+
+    const res = await fetch(`/chat/api/rooms/${chatroomId}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ message: text }),
+    });
+
+    typingEl.remove();
+
+    if (!res.ok) {
+      appendMessage("llm", "응답을 가져오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
+    const data = await res.json();
+    appendMessage("llm", data.message);
+
+    if (window.loadChatroomList) window.loadChatroomList();
+  });
+
+  async function createChatroom() {
+    const res = await fetch("/chat/api/rooms", { method: "POST" });
+    if (!res.ok) return null;
+    return res.json();
+  }
+
+  async function loadMessages(id) {
+    const res = await fetch(`/chat/api/rooms/${id}/messages`);
+    if (!res.ok) return;
+
+    const data = await res.json();
+    messagesEl.innerHTML = "";
+    data.items.forEach(m => appendMessage(m.speaker, m.message));
+  }
+
+  function appendMessage(speaker, text, isTyping) {
+    const el = document.createElement("div");
+    el.className = `chat-message ${speaker}` + (isTyping ? " typing" : "");
+    el.textContent = text;
+    messagesEl.appendChild(el);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return el;
+  }
+});

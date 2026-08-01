@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.sql import func
 
 from .database import Base
@@ -21,4 +21,26 @@ class UserLoginHistory(Base):
 
     history_id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String(20), ForeignKey("user.user_id"), nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class Chatroom(Base):
+    __tablename__ = "chatroom"
+
+    chatroom_id = Column(String(36), primary_key=True)
+    user_id = Column(String(20), ForeignKey("user.user_id"), nullable=False)
+    chatroom_name = Column(String(100), nullable=False, default="새 대화")
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    is_deleted = Column(Boolean, nullable=False, default=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+
+class Chat(Base):
+    __tablename__ = "chat"
+
+    chat_id = Column(Integer, primary_key=True, autoincrement=True)
+    chatroom_id = Column(String(36), ForeignKey("chatroom.chatroom_id"), nullable=False)
+    speaker = Column(Enum("user", "llm", name="speaker_enum"), nullable=False)
+    message = Column(Text, nullable=False)
+    topic = Column(String(100), nullable=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())

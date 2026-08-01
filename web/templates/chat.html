@@ -1,9 +1,9 @@
 {% extends "layout/app_base.html" %}
 
-{% block title %}새 대화{% endblock %}
+{% block title %}{{ chatroom_name }}{% endblock %}
 
 {% block content %}
-<div class="chat-page" data-chatroom-id="">
+<div class="chat-page" data-chatroom-id="{{ chatroom_id }}">
   {% include "partials/chat_panel.html" %}
 </div>
 {% endblock %}

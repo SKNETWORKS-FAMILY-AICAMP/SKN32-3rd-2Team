@@ -621,12 +621,290 @@ a:focus-visible {
   font-weight: 500;
 }
 
+/* ---------- 관리자 : 통계 화면 ---------- */
+.stats-panel {
+  max-width: 1080px;
+}
+
+.stat-card-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--line-200);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+
+.stat-card-label {
+  font-size: 12px;
+  color: var(--ink-600);
+  margin-bottom: 8px;
+}
+
+.stat-card-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--navy-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--line-200);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+
+.chart-row .chart-card {
+  margin-bottom: 0;
+}
+
+.chart-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--navy-900);
+  margin: 0 0 16px;
+}
+
+.donut-wrap {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.donut-canvas-box {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  flex: none;
+}
+
+.line-canvas-box {
+  position: relative;
+  height: 220px;
+}
+
+.chart-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chart-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-600);
+}
+
+.legend-empty {
+  color: var(--ink-400);
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.legend-value {
+  margin-left: auto;
+  font-weight: 600;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.badge-category {
+  background: var(--accent-100);
+  color: var(--accent-600);
+}
+
+.empty-cell {
+  text-align: center;
+  color: var(--ink-400);
+  padding: 24px 0;
+}
+
+@media (max-width: 900px) {
+  .stat-card-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .chart-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- 챗봇 : 사이드바 대화 목록 ---------- */
+.chatroom-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chatroom-empty {
+  padding: 9px 10px;
+  font-size: 13px;
+  color: rgba(245, 246, 248, 0.4);
+}
+
+.chatroom-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 7px;
+}
+
+.chatroom-item:hover,
+.chatroom-item.active {
+  background: rgba(245, 246, 248, 0.06);
+}
+
+.chatroom-link {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 10px;
+  font-size: 14px;
+  color: rgba(245, 246, 248, 0.75);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chatroom-item:hover .chatroom-link,
+.chatroom-item.active .chatroom-link {
+  color: var(--surface);
+}
+
+.chatroom-delete {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-right: 6px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: rgba(245, 246, 248, 0.4);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: none;
+}
+
+.chatroom-item:hover .chatroom-delete {
+  display: block;
+}
+
+.chatroom-delete:hover {
+  background: rgba(245, 246, 248, 0.12);
+  color: var(--surface);
+}
+
+/* ---------- 챗봇 : 대화 화면 ---------- */
+.chat-page {
+  height: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 20px;
+}
+
+.chat-message {
+  max-width: 70%;
+  padding: 11px 15px;
+  font-size: 14px;
+  line-height: 1.6;
+  border-radius: 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.chat-message.user {
+  align-self: flex-end;
+  background: var(--accent-600);
+  color: var(--surface);
+  border-bottom-right-radius: 4px;
+}
+
+.chat-message.llm {
+  align-self: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--line-200);
+  color: var(--ink-900);
+  border-bottom-left-radius: 4px;
+}
+
+.chat-message.typing {
+  color: var(--ink-400);
+}
+
+.chat-input-bar {
+  flex: none;
+  display: flex;
+  gap: 10px;
+  padding: 16px 0 4px;
+}
+
+.chat-input-bar input {
+  flex: 1;
+  padding: 12px 15px;
+  font-size: 14px;
+  font-family: var(--font-sans);
+  color: var(--ink-900);
+  background: var(--surface);
+  border: 1px solid var(--line-200);
+  border-radius: 10px;
+}
+
+.chat-input-bar input:focus {
+  outline: none;
+  border-color: var(--accent-600);
+}
+
+.chat-input-bar .btn-primary {
+  width: auto;
+  padding: 12px 22px;
+}
+
 @media (max-width: 640px) {
   .app-sidebar {
     width: 72px;
   }
 
   .nav-item span.label {
+    display: none;
+  }
+
+  .chatroom-list {
     display: none;
   }
 }
