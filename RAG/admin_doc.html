@@ -18,7 +18,6 @@
                     </div>
                 </div>
 
-                <!-- 대한민국 공통 법률 섹션 -->
                 <div class="section-header common-laws-header accordion-header" data-section="common">
                     <button type="button" class="section-toggle" data-section="common" aria-expanded="true">
                         <span class="section-title">🇰🇷 대한민국 공통 법률</span>
@@ -43,9 +42,14 @@
 
             <!-- 하단 업로드 영역 -->
             <div class="upload-area" id="uploadArea">
-                <div class="upload-content">
+                <div class="upload-area-header">
+                    <button type="button" class="upload-toggle" id="uploadToggle" aria-expanded="true" aria-label="업로드 영역 접기">
+                        <span class="upload-toggle-icon">▾</span>
+                    </button>
+                </div>
+                <div class="upload-content" id="uploadContent">
                     <div class="upload-icon">📄</div>
-                    <p class="upload-text">문서 업로드 및 대시보드</p>
+                    <p class="upload-text">문서 업로드</p>
                     <p class="upload-subtext">PDF 파일을 드래그 앤 드롭하세요</p>
                     <p class="upload-note">* 단일 파일만 업로드 가능</p>
                 </div>
@@ -59,9 +63,13 @@
         <!-- 우측 파일 목록 테이블 패널 -->
         <div class="file-detail-panel" id="fileDetailPanel">
             <div class="panel-header">
-                <h2 class="panel-title" id="panelTitle">문서 목록</h2>
-                <span class="panel-subtitle" id="panelSubtitle">총 0개 문서</span>
+                <div class="panel-header-title-group">
+                    <h2 class="panel-title" id="panelTitle">문서 목록</h2>
+                    <span class="panel-subtitle" id="panelSubtitle">총 0개 문서</span>
+                </div>
+                <button type="button" class="load-all-btn" id="loadAllBtn">전체 적재</button>
             </div>
+            <div class="bulk-loading-status" id="bulkLoadingStatus" aria-live="polite"></div>
             <div class="panel-content" id="panelContent">
                 <!-- 대한민국 공통 법률 테이블 -->
                 <div class="table-section" id="commonTableSection">
@@ -110,6 +118,42 @@
                         <div class="empty-message" id="docEmptyMsg">등록된 일반 문서가 없습니다.</div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bulk-load-modal" id="bulkLoadModal" aria-hidden="true">
+        <div class="bulk-load-modal-card">
+            <div class="bulk-load-modal-header">
+                <h3>전체 적재 진행</h3>
+                <button type="button" class="bulk-load-modal-close" id="bulkLoadModalClose">×</button>
+            </div>
+            <p class="bulk-load-modal-description">문서 적재는 시간이 걸릴 수 있습니다. 진행 중에는 다른 적재를 시작할 수 없으며, 이미 적재된 문서는 아래 방식으로 처리됩니다.</p>
+            <div class="bulk-load-mode-group">
+                <label class="bulk-load-mode-option">
+                    <input type="radio" name="bulkLoadMode" value="skip" checked>
+                    <span>건너뛰기</span>
+                </label>
+                <label class="bulk-load-mode-option">
+                    <input type="radio" name="bulkLoadMode" value="overwrite">
+                    <span>다시 적재</span>
+                </label>
+            </div>
+            <div class="bulk-load-progress-wrap">
+                <div class="bulk-load-progress-bar">
+                    <div class="bulk-load-progress-fill" id="bulkLoadProgressFill"></div>
+                </div>
+                <div class="bulk-load-progress-meta">
+                    <span id="bulkLoadProgressText">대기 중</span>
+                    <span id="bulkLoadEstimateText">예상 시간: 약 1~3분</span>
+                </div>
+            </div>
+            <ul class="bulk-load-step-list" id="bulkLoadStepList">
+                <li>대기 중</li>
+            </ul>
+            <div class="bulk-load-actions">
+                <button type="button" class="secondary-btn" id="bulkLoadCancelBtn">취소</button>
+                <button type="button" class="primary-btn" id="bulkLoadStartBtn">적재 시작</button>
             </div>
         </div>
     </div>

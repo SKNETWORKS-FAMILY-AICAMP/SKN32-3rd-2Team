@@ -2,6 +2,9 @@
 let files = [];
 let selectedFileId = null;
 let currentViewMode = 'list';
+let bulkLoadInProgress = false;
+let bulkLoadAbortController = null;
+let bulkLoadCompleted = false;
 const API_BASE_URL = '/api';
 const PDF_ICON_PATH = '/res/img/icon_pdf.png';
 const VIEW_MODE_STORAGE_KEY = 'rag_explorer_view_mode';
@@ -13,6 +16,8 @@ document.addEventListener('DOMContentLoaded', function() {
     restoreAccordionState();
     setupViewToggle();
     setupAccordionToggle();
+    setupUploadToggle();
+    setupLoadAllButton();
     loadFiles();
     setupDragAndDrop();
     setupFileInput();
@@ -38,6 +43,184 @@ function setupViewToggle() {
         });
     });
     updateViewToggleButtons();
+}
+
+function setupUploadToggle() {
+    const toggle = document.getElementById('uploadToggle');
+    const content = document.getElementById('uploadContent');
+    if (!toggle || !content) {
+        return;
+    }
+
+    toggle.addEventListener('click', () => {
+        const expanded = toggle.getAttribute('aria-expanded') === 'true';
+        toggle.setAttribute('aria-expanded', String(!expanded));
+        content.classList.toggle('collapsed', expanded);
+
+        const icon = toggle.querySelector('.upload-toggle-icon');
+        if (icon) {
+            icon.textContent = expanded ? '▸' : '▾';
+        }
+    });
+}
+
+function setupLoadAllButton() {
+    const button = document.getElementById('loadAllBtn');
+    const modal = document.getElementById('bulkLoadModal');
+    const cancelButton = document.getElementById('bulkLoadCancelBtn');
+    const startButton = document.getElementById('bulkLoadStartBtn');
+    const progressFill = document.getElementById('bulkLoadProgressFill');
+    const progressText = document.getElementById('bulkLoadProgressText');
+    const estimateText = document.getElementById('bulkLoadEstimateText');
+    const stepList = document.getElementById('bulkLoadStepList');
+    const statusArea = document.getElementById('bulkLoadingStatus');
+    const closeButton = document.getElementById('bulkLoadModalClose');
+
+    if (!button || !modal) {
+        return;
+    }
+
+    const updateModal = (percent, text, estimate, steps) => {
+        if (progressFill) progressFill.style.width = `${percent}%`;
+        if (progressText) progressText.textContent = text;
+        if (estimateText) estimateText.textContent = estimate;
+        if (stepList) {
+            stepList.innerHTML = steps.map(step => `<li>${step}</li>`).join('');
+        }
+    };
+
+    const openModal = () => {
+        modal.classList.add('open');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('bulk-loading-active');
+    };
+
+    const closeModal = () => {
+        if (bulkLoadInProgress) {
+            return;
+        }
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('bulk-loading-active');
+    };
+
+    const setStatusText = (message) => {
+        if (statusArea) {
+            statusArea.textContent = message;
+        }
+    };
+
+    button.addEventListener('click', () => {
+        if (bulkLoadInProgress) {
+            return;
+        }
+
+        const pendingFiles = files.filter(file => !file.vectorLoaded && !file.loading);
+        if (pendingFiles.length === 0) {
+            return;
+        }
+
+        bulkLoadCompleted = false;
+        if (startButton) {
+            startButton.textContent = '적재 시작';
+            startButton.disabled = false;
+        }
+        if (cancelButton) {
+            cancelButton.textContent = '취소';
+            cancelButton.disabled = false;
+        }
+
+        const estimatedMinutes = Math.max(1, Math.ceil(pendingFiles.length / 4));
+        updateModal(0, '대기 중', `예상 시간: 약 ${estimatedMinutes}분`, ['적재 대상 문서를 확인 중입니다.', '문서별로 벡터 인덱스를 생성합니다.', '완료 후 상태를 갱신합니다.']);
+        setStatusText('전체 적재 준비 중입니다. 시작 버튼을 눌러 진행하세요.');
+        openModal();
+    });
+
+    closeButton?.addEventListener('click', closeModal);
+    cancelButton?.addEventListener('click', () => {
+        if (bulkLoadInProgress) {
+            return;
+        }
+        if (bulkLoadAbortController) {
+            bulkLoadAbortController.abort();
+        }
+        closeModal();
+    });
+
+    startButton?.addEventListener('click', async () => {
+        if (bulkLoadCompleted) {
+            closeModal();
+            return;
+        }
+
+        const selectedMode = document.querySelector('input[name="bulkLoadMode"]:checked')?.value || 'skip';
+        const pendingFiles = files.filter(file => !file.vectorLoaded && !file.loading);
+        if (pendingFiles.length === 0) {
+            alert('적재할 문서가 없습니다.');
+            return;
+        }
+
+        bulkLoadInProgress = true;
+        button.disabled = true;
+        button.textContent = '적재 중...';
+        startButton.disabled = true;
+        startButton.textContent = '진행 중...';
+        if (closeButton) {
+            closeButton.disabled = true;
+        }
+        if (cancelButton) {
+            cancelButton.disabled = true;
+        }
+        openModal();
+        setStatusText('전체 적재를 시작했습니다. 진행 중에는 다른 적재를 막고 있습니다.');
+
+        updateModal(5, '진행 중', '예상 시간: 약 1~3분', ['적재 대상을 확인했습니다.', '문서별 적재를 시작합니다.', '완료 후 결과를 반영합니다.']);
+
+        bulkLoadAbortController = new AbortController();
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/documents/load-all?mode=${selectedMode}`, {
+                method: 'POST',
+                signal: bulkLoadAbortController.signal
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.detail || '전체 적재에 실패했습니다.');
+            }
+
+            updateModal(100, '완료', `완료: ${result.loaded_count}개 적재`, ['모든 문서 적재가 끝났습니다.', '리스트를 새로고침합니다.']);
+            setStatusText('');
+            await loadFiles();
+            bulkLoadCompleted = true;
+            startButton.disabled = false;
+            startButton.textContent = '확인';
+            if (cancelButton) {
+                cancelButton.textContent = '닫기';
+            }
+            if (closeButton) {
+                closeButton.disabled = false;
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                setStatusText('전체 적재가 취소되었습니다.');
+            } else {
+                console.error(error);
+                setStatusText('전체 적재 중 오류가 발생했습니다.');
+                alert(`전체 적재 실패: ${error.message}`);
+            }
+        } finally {
+            bulkLoadInProgress = false;
+            bulkLoadAbortController = null;
+            button.disabled = false;
+            button.textContent = '전체 적재';
+            if (closeButton) {
+                closeButton.disabled = false;
+            }
+            if (cancelButton) {
+                cancelButton.disabled = false;
+            }
+        }
+    });
 }
 
 function updateViewToggleButtons() {

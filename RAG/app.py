@@ -16,6 +16,8 @@ from rag_pipeline import (
     get_embedding_model,
     get_reranker_model,
     search_across_vector_stores,
+    select_documents_for_bulk_load,
+    select_pending_documents,
 )
 
 
@@ -372,9 +374,8 @@ async def load_document_to_vector(doc_id: int):
     """문서를 벡터 DB에 적재"""
     connection = get_db_connection()
     cursor = connection.cursor(dictionary=True)
-    
+
     try:
-        # 문서 조회
         query = """
             SELECT *
             FROM document
@@ -386,17 +387,9 @@ async def load_document_to_vector(doc_id: int):
         document = cursor.fetchone()
 
         if not document:
-            raise HTTPException(
-                status_code=404,
-                detail="Document not found"
-            )
+            raise HTTPException(status_code=404, detail="Document not found")
 
-
-        # ==========================
-        # PDF -> Chunk -> Vector DB
-        # ==========================
         file_path = document["file_path"]
-
         if not os.path.isabs(file_path):
             file_path = os.path.join(Config.BASE_DIR, file_path)
 
@@ -409,11 +402,6 @@ async def load_document_to_vector(doc_id: int):
             chunk_overlap=Config.CHUNK_OVERLAP,
         )
 
-
-        # ==========================
-        # 적재 완료 처리
-        # ==========================
-
         update_query = """
             UPDATE document
             SET is_loaded = TRUE,
@@ -421,34 +409,90 @@ async def load_document_to_vector(doc_id: int):
             WHERE doc_id = %s
         """
 
-        cursor.execute(
-            update_query,
-            (datetime.now(), doc_id)
-        )
-
+        cursor.execute(update_query, (datetime.now(), doc_id))
         connection.commit()
-
 
         return {
             "message": "Vector DB loading completed",
             "doc_id": doc_id,
             "chunk_count": chunk_count,
         }
-
-
     except Exception as e:
-
         connection.rollback()
-
         import traceback
         traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        connection.close()
 
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)
-        )
 
+@app.post("/api/documents/load-all")
+async def load_all_documents(mode: str = "skip"):
+    """미적재 문서 전체를 벡터 DB에 적재 (skip/overwrite)"""
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
 
+    try:
+        query = """
+            SELECT doc_id, original_file_name, stored_file_name, file_path, created_at,
+                   is_loaded, loaded_at, is_deleted, deleted_at
+            FROM document
+            WHERE is_deleted = FALSE
+            ORDER BY created_at ASC
+        """
+        cursor.execute(query)
+        documents = cursor.fetchall()
+
+        selected_documents = select_documents_for_bulk_load(documents, mode=mode)
+        if not selected_documents:
+            return {"message": "No documents selected", "loaded_count": 0, "failed": [], "mode": mode}
+
+        loaded_ids = []
+        failed = []
+
+        for document in selected_documents:
+            doc_id = document["doc_id"]
+            file_path = document["file_path"]
+            if not os.path.isabs(file_path):
+                file_path = os.path.join(Config.BASE_DIR, file_path)
+
+            vector_path = os.path.join(Config.BASE_DIR, "vector_store", str(doc_id))
+            try:
+                chunk_count = build_vector_store_from_file(
+                    file_path,
+                    vector_path,
+                    doc_id=doc_id,
+                    chunk_size=Config.CHUNK_SIZE,
+                    chunk_overlap=Config.CHUNK_OVERLAP,
+                )
+                cursor.execute(
+                    """
+                    UPDATE document
+                    SET is_loaded = TRUE,
+                        loaded_at = %s
+                    WHERE doc_id = %s
+                    """,
+                    (datetime.now(), doc_id),
+                )
+                connection.commit()
+                loaded_ids.append({"doc_id": doc_id, "chunk_count": chunk_count})
+            except Exception as exc:
+                connection.rollback()
+                failed.append({"doc_id": doc_id, "error": str(exc)})
+
+        return {
+            "message": "Bulk vector loading completed",
+            "loaded_count": len(loaded_ids),
+            "loaded_ids": loaded_ids,
+            "failed": failed,
+            "mode": mode,
+        }
+    except Exception as e:
+        connection.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         cursor.close()
         connection.close()

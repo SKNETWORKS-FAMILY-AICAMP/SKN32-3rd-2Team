@@ -218,6 +218,32 @@ def get_reranker_model():
     return _reranker_model
 
 
+def select_pending_documents(documents: List[dict]) -> List[dict]:
+    pending = []
+    for doc in documents:
+        if not doc:
+            continue
+        if bool(doc.get("is_deleted", False)):
+            continue
+        if bool(doc.get("is_loaded", False)):
+            continue
+        pending.append(doc)
+    return pending
+
+
+def select_documents_for_bulk_load(documents: List[dict], *, mode: str = "skip") -> List[dict]:
+    selected = []
+    for doc in documents:
+        if not doc:
+            continue
+        if bool(doc.get("is_deleted", False)):
+            continue
+        if bool(doc.get("is_loaded", False)) and mode == "skip":
+            continue
+        selected.append(doc)
+    return selected
+
+
 def build_vector_store_from_file(file_path: str, output_dir: str, *, doc_id: int, chunk_size: int = 800, chunk_overlap: int = 120):
     from langchain_community.document_loaders import PyPDFLoader
     from langchain_community.vectorstores import FAISS
