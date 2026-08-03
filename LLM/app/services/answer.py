@@ -10,13 +10,19 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from collections.abc import AsyncIterator, Sequence
 
 from app import metrics
 from app.config import get_settings
 from app.domain import FALLBACK_TOPIC, TOPIC_MAX_LEN, RetrievedChunk
-from app.errors import LLMServiceError, ProviderTimeout, ProviderUnavailable
+from app.errors import (
+    LLMServiceError,
+    ProviderRateLimited,
+    ProviderTimeout,
+    ProviderUnavailable,
+)
 from app.prompts import ANSWER_SYSTEM, build_answer_context
 from app.providers.base import Message
 from app.providers.registry import get_provider
@@ -72,11 +78,37 @@ async def _retrieve(req: ChatRequest) -> tuple[list[RetrievedChunk], bool, int]:
     return await rag_client.search(build_search_query(req.message, req.history))
 
 
+_RETRY_AFTER_RE = re.compile(r"retry in ([\d.]+)\s*s", re.I)
+
+
+def _rate_limit_of(exc: Exception) -> ProviderRateLimited | None:
+    """벤더의 429 를 알아본다.
+
+    OpenAI(`openai.RateLimitError`)는 `.status_code`, Gemini(`google.genai` ClientError)는
+    `.code` 로 상태를 노출한다. SDK 를 직접 import 하지 않고 속성으로 판별해,
+    한쪽 SDK 가 없는 환경에서도 동작하게 한다.
+    """
+    status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+    if status != 429:
+        return None
+
+    # Gemini 는 메시지에 "Please retry in 31.06s" 를 담아준다.
+    m = _RETRY_AFTER_RE.search(str(exc))
+    retry_after = float(m.group(1)) if m else None
+    return ProviderRateLimited(retry_after=retry_after)
+
+
 def _wrap_provider_error(exc: Exception) -> LLMServiceError:
     if isinstance(exc, LLMServiceError):
         return exc
     if isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
         return ProviderTimeout()
+    rate_limited = _rate_limit_of(exc)
+    if rate_limited is not None:
+        logger.warning(
+            "프로바이더 호출 한도 초과 (재시도 권장 %s초)", rate_limited.retry_after or "?"
+        )
+        return rate_limited
     logger.exception("프로바이더 호출 실패")
     return ProviderUnavailable()
 
