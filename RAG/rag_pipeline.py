@@ -4,6 +4,10 @@ import re
 from typing import List, Optional, Any
 
 
+_embedding_model = None
+_reranker_model = None
+
+
 class DocumentLike:
     def __init__(self, page_content: str, metadata: Optional[dict] = None):
         self.page_content = page_content
@@ -171,19 +175,29 @@ def build_chunks_from_pages(
 
 
 def get_embedding_model():
-    from langchain_community.embeddings import HuggingFaceEmbeddings
+    global _embedding_model
 
-    return HuggingFaceEmbeddings(
-        model_name="jhgan/ko-sroberta-multitask",
-        model_kwargs={"device": "cpu"},
-        encode_kwargs={"normalize_embeddings": True},
-    )
+    if _embedding_model is None:
+        from langchain_community.embeddings import HuggingFaceEmbeddings
+
+        _embedding_model = HuggingFaceEmbeddings(
+            model_name="jhgan/ko-sroberta-multitask",
+            model_kwargs={"device": "cpu"},
+            encode_kwargs={"normalize_embeddings": True},
+        )
+
+    return _embedding_model
 
 
 def get_reranker_model():
-    from sentence_transformers import CrossEncoder
+    global _reranker_model
 
-    return CrossEncoder("BAAI/bge-reranker-v2-m3")
+    if _reranker_model is None:
+        from sentence_transformers import CrossEncoder
+
+        _reranker_model = CrossEncoder("BAAI/bge-reranker-v2-m3")
+
+    return _reranker_model
 
 
 def build_vector_store_from_file(file_path: str, output_dir: str, *, doc_id: int, chunk_size: int = 800, chunk_overlap: int = 120):
