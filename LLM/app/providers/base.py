@@ -56,6 +56,18 @@ class LLMProvider(abc.ABC):
     ) -> AsyncIterator[str]:
         """토큰 조각을 순서대로 흘려보낸다."""
 
+    async def preconnect(self) -> None:
+        """벤더 API 로의 TCP/TLS 연결을 미리 열어둔다.
+
+        객체를 만들어두는 것만으로는 부족하다. 실제 연결은 첫 API 호출 때 맺어지고
+        핸드셰이크에만 실측 700ms 가 든다. 서버 기동 시 미리 열어 첫 사용자가
+        그 비용을 물지 않게 한다.
+
+        **토큰을 쓰지 않는 호출**로 구현해야 한다(모델 목록 조회 등).
+        실패해도 서비스에 영향이 없어야 하므로 호출부에서 예외를 흡수한다.
+        기본 구현은 아무것도 하지 않는다 — mock 프로바이더처럼 연결이 없는 경우.
+        """
+
     @abc.abstractmethod
     async def classify(
         self,

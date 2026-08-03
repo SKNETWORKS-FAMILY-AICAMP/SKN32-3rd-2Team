@@ -14,7 +14,11 @@ env/
 # 계측/벤치마크 원본 로그 (집계된 보고서만 커밋)
 logs/
 bench/results/
+bench/.cache/
 *.jsonl
+
+# 로컬 전용 확인 도구 (git 에 올리지 않음)
+local/
 
 # IDE / OS
 .vscode/

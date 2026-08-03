@@ -2,21 +2,21 @@
 
 사내 HR 규정 질의응답 시스템의 **LLM 파트**. 답변 생성 / 주제 분류 / 채팅방 이름 생성을 담당한다.
 
-> 담당: Member D · 브랜치 `LLM` · 포트 `8001`
+> 담당: Member D · 브랜치 `LLM` · 포트 `8002`
 
 ## 명세서 두 종류
 
 | 문서 | 방향 | 받는 사람 |
 |---|---|---|
 | [docs/API.md](docs/API.md) | **제공** — 이 서비스가 노출하는 API | WEB 파트 (챗봇 서버 / 프론트, 8000) |
-| [docs/RAG_REQUIRED_API.md](docs/RAG_REQUIRED_API.md) | **요청** — 이 서비스가 필요로 하는 API | RAG 파트 (Member C, 8002) |
+| [docs/RAG_REQUIRED_API.md](docs/RAG_REQUIRED_API.md) | **요청** — 이 서비스가 필요로 하는 API | RAG 파트 (Member C, 8001) |
 
 ---
 
 ## 아키텍처에서의 위치
 
 ```
-웹 프론트엔드 → 챗봇 서버(8000) → [LLM 서비스(8001)] → RAG 서비스(8002)
+웹 프론트엔드 → 챗봇 서버(8000) → [LLM 서비스(8002)] → RAG 서비스(8001)
                       ↓
                     MySQL
 ```
@@ -36,13 +36,13 @@ python -m venv .venv
 pip install -r requirements.txt
 
 cp .env.example .env            # 값 채우기
-uvicorn app.main:app --reload --port 8001
+uvicorn app.main:app --reload --port 8002
 ```
 
 > ⚠️ **반드시 가상환경에서 설치하세요.** 전역 환경에 바로 설치하면 다른 프로젝트의 패키지 버전을 깨뜨릴 수 있습니다.
 
-- Swagger: <http://localhost:8001/docs>
-- 헬스체크: <http://localhost:8001/health>
+- Swagger: <http://localhost:8002/docs>
+- 헬스체크: <http://localhost:8002/health>
 
 ### API 키 없이 돌려보기
 
@@ -67,9 +67,9 @@ RAG_MODE=mock     # RAG 서비스 호출 안 함
 | `DEFAULT_PROVIDER` | `openai` | `openai` \| `gemini`. 요청별로 덮어쓸 수 있음 |
 | `LLM_TIMEOUT_SEC` | `5.0` | 초과 시 504 + 한국어 안내 (스토리보드 13p 요구사항) |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` | — / `gpt-4o-mini` | |
-| `GEMINI_API_KEY` / `GEMINI_MODEL` | — / `gemini-2.0-flash` | |
+| `GEMINI_API_KEY` / `GEMINI_MODEL` | — / `gemini-3.5-flash` | |
 | `RAG_MODE` | `mock` | `live` 면 실제 RAG 서비스 호출 |
-| `RAG_BASE_URL` | `http://localhost:8002` | |
+| `RAG_BASE_URL` | `http://localhost:8001` | |
 | `RAG_TIMEOUT_SEC` / `RAG_TOP_K` | `3.0` / `5` | |
 | `METRICS_ENABLED` / `METRICS_PATH` | `true` / `logs/metrics.jsonl` | 계측 로그. 성능 보고서 입력 |
 

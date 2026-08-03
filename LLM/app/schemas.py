@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.domain import TOPIC_CATEGORIES
 
-ProviderName = Literal["openai", "gemini"]
+ProviderName = Literal["openai", "gemini", "qwen"]
 Speaker = Literal["user", "llm"]
 
 
@@ -141,6 +141,7 @@ class ErrorResponse(BaseModel):
 
     error_code: Literal[
         "LLM_TIMEOUT",
+        "LLM_RATE_LIMITED",
         "LLM_UNAVAILABLE",
         "PROVIDER_NOT_CONFIGURED",
         "INVALID_REQUEST",
@@ -156,6 +157,10 @@ class ErrorResponse(BaseModel):
 # 확인할 수 있다.
 ERROR_RESPONSES: dict = {
     422: {"model": ErrorResponse, "description": "요청 형식 오류 — INVALID_REQUEST"},
+    429: {
+        "model": ErrorResponse,
+        "description": "벤더 API 호출 한도 초과 — LLM_RATE_LIMITED. Retry-After 헤더 참고",
+    },
     500: {"model": ErrorResponse, "description": "예상 밖 오류 — INTERNAL_ERROR"},
     503: {
         "model": ErrorResponse,
