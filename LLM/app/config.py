@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # 상용 API 와의 비교용. 키가 필요 없는 대신 로컬에 Ollama 가 떠 있어야 한다.
     qwen_base_url: str = "http://localhost:11434"
     qwen_model: str = "qwen2.5:7b"
+    # Ollama 는 기본 5분 미사용 시 모델을 메모리에서 내린다. 그러면 다음 호출이
+    # 모델 로딩(실측 4초)을 다시 문다. 시연 중 잠깐 쉬면 그대로 드러나므로
+    # 넉넉히 잡아 상주시킨다. VRAM 4.75GB 를 계속 점유한다(8GB 중).
+    qwen_keep_alive: str = "30m"
 
     # --- 주제 분류 방법 ---
     # llm   : 현행. 프로바이더에 enum 제약 호출을 한 번 더 보낸다
