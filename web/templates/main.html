@@ -1,0 +1,14 @@
+{% extends "layout/app_base.html" %}
+
+{% block title %}새 대화{% endblock %}
+
+{% block content %}
+<div class="chat-page" data-chatroom-id="">
+  {% include "partials/chat_panel.html" %}
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script src="/static/js/sidebar.js"></script>
+<script src="/static/js/chat.js"></script>
+{% endblock %}
