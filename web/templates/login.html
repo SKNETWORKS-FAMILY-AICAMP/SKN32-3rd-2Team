@@ -45,17 +45,23 @@
   </div>
 </div>
 
-<!-- 회원가입/사용자추가/사용자수정 공용 모달 -->
 {% include "partials/user_modal.html" %}
 
 <script src="/static/js/user_modal.js"></script>
 <script>
-  // 로그인 페이지 전용 후속 동작: 가입 완료되면 아이디를 로그인 폼에 채워준다.
   document.addEventListener("user-modal:success", function (e) {
     if (e.detail.mode !== "signup") return;
     document.getElementById("login-user-id").value = e.detail.userId;
     document.getElementById("login-passwd").focus();
   });
+
+  // 메뉴 이동 등 페이지 전체 이동 중에 세션이 만료된 상태로 여기로 왔을 때만 알림을 띄운다.
+  // (원래 로그인한 적이 없어서 온 경우엔 안 뜸)
+  if (new URLSearchParams(window.location.search).get("expired") === "1") {
+    alert("세션이 만료되었습니다. 다시 로그인해주세요.");
+    // 새로고침해도 알림이 다시 뜨지 않도록 주소창의 ?expired=1을 지운다.
+    window.history.replaceState({}, "", "/login");
+  }
 </script>
 </body>
 </html>

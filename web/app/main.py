@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from .auth import SESSION_MAX_AGE_SECONDS, get_current_user, require_login
+from .auth import _had_session_cookie
 from .auth_router import router as auth_router
 from .database import warm_up as warm_up_db
 from app.admin.stats_router import router as stats_router
@@ -38,12 +39,23 @@ async def lifespan(app: FastAPI):
 
     yield
 
+
 app = FastAPI(title="RAG 챗봇", lifespan=lifespan)
+
+# NOTE:
+# 쿠키 max_age는 실제 세션 만료 시간(SESSION_MAX_AGE_SECONDS, 3시간)보다 길게 설정한다.
+# 동일하게 설정하면 세션 만료 시 브라우저가 쿠키를 제거하여,
+# "세션 만료"와 "로그인 이력 없음"을 구분할 수 없게 된다.
+# (auth.py의 _had_session_cookie에서 구분 용도로 사용)
+#
+# 실제 인증 유효성은 auth.py에서 세션의 login_at 기준으로 판단하므로,
+# 쿠키 수명을 늘려도 로그인 유지 시간이 늘어나지는 않는다.
+SESSION_COOKIE_MAX_AGE_SECONDS = SESSION_MAX_AGE_SECONDS + 7 * 24 * 60 * 60  # 세션 유효시간 + 7일 여유
 
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SESSION_SECRET_KEY", "dev-secret-change-me"),
-    max_age=SESSION_MAX_AGE_SECONDS,
+    max_age=SESSION_COOKIE_MAX_AGE_SECONDS,
     same_site="lax",
 )
 
@@ -57,10 +69,12 @@ templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 @app.get("/", response_class=HTMLResponse)
 def root(request: Request):
+    had_session = _had_session_cookie(request)
     user = get_current_user(request)
     if user:
         return RedirectResponse(url="/main", status_code=303)
-    return RedirectResponse(url="/login", status_code=303)
+    login_url = "/login?expired=1" if had_session else "/login"
+    return RedirectResponse(url=login_url, status_code=303)
 
 
 @app.get("/main", response_class=HTMLResponse)

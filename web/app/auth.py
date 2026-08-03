@@ -1,3 +1,4 @@
+import os
 import time
 
 import bcrypt
@@ -5,7 +6,7 @@ from fastapi import Request, HTTPException, status
 from fastapi.responses import RedirectResponse
 
 # 세션 유효 시간: 3시간
-SESSION_MAX_AGE_SECONDS = 3 * 60 * 60
+SESSION_MAX_AGE_SECONDS = int(os.getenv("SESSION_MAX_AGE_SECONDS", str(3 * 60 * 60)))
 
 
 def hash_password(raw_password: str) -> str:
@@ -48,11 +49,41 @@ def get_current_user(request: Request):
     }
 
 
+def _had_session_cookie(request: Request) -> bool:
+    """세션이 "있다가 만료된 것"과 "처음부터 없던 것"을 구분하기 위한 판단 기준.
+
+    주의:
+    SessionMiddleware(Starlette)는 max_age가 지난 세션 쿠키를 처리하는 과정에서
+    세션 데이터를 유효하지 않은 것으로 판단하고, 라우트 코드가 실행되기 전에
+    request.session을 빈 상태로 만든다.
+
+    따라서 request.session.get("login_at") 같은 세션 내부 값만 확인하면,
+    "기존 세션이 만료된 경우"와 "로그인한 적이 없는 경우"를 구분할 수 없다.
+
+    이를 구분하기 위해 디코딩된 session 데이터가 아니라,
+    요청에 포함된 원본 세션 쿠키의 존재 여부를 확인한다.
+
+    - 세션 쿠키가 존재하지만 session 데이터가 비어 있음 → 기존 세션 만료
+    - 세션 쿠키 자체가 없음 → 로그인 이력 없음
+    """
+    return bool(request.cookies.get("session"))
+
+
 def require_login(request: Request):
-    """페이지 라우트에서 로그인 여부를 검사하고, 미로그인 시 로그인 화면으로 리다이렉트한다."""
+    """페이지 접근 시 로그인 여부를 검사하는 라우트 보호용 함수.
+
+    인증 세션이 없으면 로그인 페이지로 리다이렉트한다.
+    단, 이전에 로그인한 세션이 만료된 경우에는 /login?expired=1을 사용해
+    세션 만료 상태를 전달한다.
+
+    로그인 화면은 이 값을 기준으로 일반 로그인 안내와
+    "세션이 만료되어 다시 로그인해야 함"을 구분해 표시한다.
+    """
+    had_session = _had_session_cookie(request)
     user = get_current_user(request)
     if user is None:
-        return None, RedirectResponse(url="/login", status_code=303)
+        login_url = "/login?expired=1" if had_session else "/login"
+        return None, RedirectResponse(url=login_url, status_code=303)
     return user, None
 
 def require_login_api(request: Request):
@@ -69,10 +100,12 @@ def require_login_api(request: Request):
 
 def require_admin(request: Request):
     """관리자 전용 페이지 라우트에서 로그인 및 관리자 권한을 검사한다.
-    미로그인 시 로그인 화면으로, 관리자가 아니면 메인 화면으로 리다이렉트한다."""
+    미로그인 시 로그인 화면으로(세션 만료였다면 ?expired=1과 함께), 관리자가 아니면 메인 화면으로 리다이렉트한다."""
+    had_session = _had_session_cookie(request)
     user = get_current_user(request)
     if user is None:
-        return None, RedirectResponse(url="/login", status_code=303)
+        login_url = "/login?expired=1" if had_session else "/login"
+        return None, RedirectResponse(url=login_url, status_code=303)
     if not user.get("is_admin"):
         return None, RedirectResponse(url="/main", status_code=303)
     return user, None
