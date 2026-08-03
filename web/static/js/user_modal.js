@@ -19,6 +19,7 @@
   const isAdminInput = document.getElementById("user-modal-is-admin");
   const isDisabledInput = document.getElementById("user-modal-is-disabled");
   const signupHintField = document.getElementById("field-signup-hint");
+  const deleteBtn = document.getElementById("delete-account-btn");
 
   // 모드별 차이점: 안내문구(회원가입만) / 아이디 수정가능여부 / 비번확인 표시여부 / 관리자·비활성 표시여부
   const MODE_CONFIG = {
@@ -78,6 +79,10 @@
     // 이용/채팅 내역 분석 안내는 '회원가입'에서만 노출 (유저관리 쪽 추가/수정에는 안 보임)
     signupHintField.classList.toggle("hidden", !config.showSignupHint);
 
+    // 계정 삭제는 수정 모드에서만, 대상 아이디를 버튼에 기억해둔다
+    deleteBtn.classList.toggle("hidden", mode !== "edit");
+    deleteBtn.dataset.userId = prefill.userId || "";
+
     notice.className = "form-notice";
     notice.textContent = "";
 
@@ -131,6 +136,39 @@
     } catch (err) {
       checkIdResult.className = "field-hint error";
       checkIdResult.textContent = "확인 중 오류가 발생했습니다.";
+    }
+  });
+
+  deleteBtn.addEventListener("click", async function () {
+    const userId = deleteBtn.dataset.userId;
+    if (!userId) return;
+
+    if (!confirm(`정말로 "${userId}" 계정을 삭제할까요? 이 작업은 되돌릴 수 없습니다.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/admin/users/api/${encodeURIComponent(userId)}`, { method: "DELETE" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        notice.className = "form-notice error show";
+        notice.textContent = data.detail || "삭제에 실패했습니다.";
+        return;
+      }
+
+      notice.className = "form-notice success show";
+      notice.textContent = data.detail;
+
+      setTimeout(function () {
+        closeModal();
+        document.dispatchEvent(new CustomEvent("user-modal:success", {
+          detail: { mode: "delete", userId: userId, message: data.detail },
+        }));
+      }, 600);
+    } catch (err) {
+      notice.className = "form-notice error show";
+      notice.textContent = "네트워크 오류가 발생했습니다. 다시 시도해주세요.";
     }
   });
 

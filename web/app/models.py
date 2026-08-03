@@ -13,7 +13,10 @@ class User(Base):
     department = Column(String(100), nullable=False)
     is_admin = Column(Boolean, nullable=False, default=False)
     is_disabled = Column(Boolean, nullable=False, default=False)
+    is_deleted = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+    deleted_at = Column(DateTime, nullable=True)
 
 
 class UserLoginHistory(Base):

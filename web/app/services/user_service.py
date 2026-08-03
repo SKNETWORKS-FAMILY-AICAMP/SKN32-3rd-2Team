@@ -9,13 +9,15 @@ from ..models import User, UserLoginHistory
 MAX_PAGE_SIZE = 100
 USER_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{4,20}$")
 
+
 def record_login(db: Session, user_id: str) -> None:
     """로그인 성공 시 user_login_history에 이력 한 건을 남긴다."""
     db.add(UserLoginHistory(user_id=user_id))
     db.commit()
 
+
 class UserServiceError(Exception):
-    """유저 생성/수정 중 발생하는 검증 오류. 라우터에서 status_code로 매핑해서 응답한다."""
+    """유저 생성/수정/삭제 중 발생하는 검증 오류. 라우터에서 status_code로 매핑해서 응답한다."""
 
     def __init__(self, message: str, status_code: int = 400):
         super().__init__(message)
@@ -73,9 +75,7 @@ def update_user_profile(
     """유저관리 화면의 수정 모달: 이름 / 부서명 / 비밀번호 / 관리자권한 / 비활성여부를 수정한다.
     (user_id는 이 경로로 변경할 수 없다)"""
 
-    user = db.get(User, user_id)
-    if user is None:
-        raise UserServiceError("사용자를 찾을 수 없습니다.", status_code=404)
+    user = _get_active_user_or_404(db, user_id)
 
     if name:
         user.name = name
@@ -99,6 +99,30 @@ def update_user_profile(
     return user
 
 
+def delete_user_by_admin(db: Session, user_id: str, current_admin_id: str) -> None:
+    """유저관리 수정 모달의 '계정 삭제' 버튼. 소프트 삭제(is_deleted=True)로 처리한다.
+
+    실제로 행을 지우지 않는 이유: chatroom/chat/user_login_history가 이 유저를
+    참조(FK)하고 있어서, 하드 삭제하면 그 기록들이 깨지거나 별도 처리가 필요해진다.
+    """
+
+    if user_id == current_admin_id:
+        raise UserServiceError("본인 계정은 삭제할 수 없습니다.", status_code=400)
+
+    user = _get_active_user_or_404(db, user_id)
+
+    user.is_deleted = True
+    user.deleted_at = func.now()
+    db.commit()
+
+
+def _get_active_user_or_404(db: Session, user_id: str) -> User:
+    user = db.get(User, user_id)
+    if user is None or user.is_deleted:
+        raise UserServiceError("사용자를 찾을 수 없습니다.", status_code=404)
+    return user
+
+
 def get_user_list_by_params(
     db: Session,
     name: str | None = None,
@@ -108,13 +132,13 @@ def get_user_list_by_params(
     page: int = 1,
     size: int = 20,
 ):
-    """조건에 맞는 유저 목록을 페이지 단위로 조회한다.
+    """조건에 맞는 유저 목록을 페이지 단위로 조회한다. 삭제된 계정은 제외한다.
     admin/users.py의 페이지 라우트와 API 라우트가 이 함수를 공유한다."""
 
     page = max(page, 1)
     size = min(max(size, 1), MAX_PAGE_SIZE)
 
-    stmt = select(User)
+    stmt = select(User).where(User.is_deleted == False)
 
     if name:
         stmt = stmt.where(User.name.like(f"%{name}%"))

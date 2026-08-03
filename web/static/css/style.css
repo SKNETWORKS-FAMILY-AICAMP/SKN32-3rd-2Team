@@ -143,6 +143,24 @@ a:focus-visible {
   color: var(--surface);
 }
 
+.btn-danger-link {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 8px;
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--danger);
+  text-align: center;
+  cursor: pointer;
+}
+
+.btn-danger-link:hover {
+  text-decoration: underline;
+}
+
 .checkbox-field {
   display: flex;
   align-items: center;

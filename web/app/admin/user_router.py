@@ -10,6 +10,7 @@ from ..database import get_db
 from ..services.user_service import (
     UserServiceError,
     create_user_by_admin,
+    delete_user_by_admin,
     get_user_list_by_params,
     update_user_profile,
 )
@@ -114,3 +115,16 @@ def update_user_api(
         return JSONResponse(status_code=e.status_code, content={"detail": e.message})
 
     return JSONResponse(status_code=200, content={"detail": "수정되었습니다."})
+
+
+@router.delete("/api/{user_id}")
+def delete_user_api(request: Request, user_id: str, db: Session = Depends(get_db)):
+    """유저관리 수정 모달의 '계정 삭제' 버튼. 본인 계정은 삭제할 수 없다."""
+    admin = require_admin_api(request)
+
+    try:
+        delete_user_by_admin(db, user_id, admin["user_id"])
+    except UserServiceError as e:
+        return JSONResponse(status_code=e.status_code, content={"detail": e.message})
+
+    return JSONResponse(status_code=200, content={"detail": "계정이 삭제되었습니다."})

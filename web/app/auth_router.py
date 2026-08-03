@@ -43,7 +43,7 @@ def login_submit(
 ):
     user = db.get(User, user_id)
 
-    if user is None or not verify_password(passwd, user.passwd):
+    if user is None or user.is_deleted or not verify_password(passwd, user.passwd):
         return templates.TemplateResponse(
             request,
             "login.html",
