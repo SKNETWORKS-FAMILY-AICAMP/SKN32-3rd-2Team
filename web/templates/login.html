@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>로그인 · Smart HR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<div class="login-page">
+  <div class="login-wrap">
+    <div class="brand">
+      <img src="/static/img/logo.png" alt="Smart HR" class="brand-logo-login">
+    </div>
+
+    <div class="login-card">
+      <span class="corner-bl"></span>
+      <span class="corner-br"></span>
+      <h1>로그인</h1>
+
+      {% if error %}
+      <div class="form-error">{{ error }}</div>
+      {% endif %}
+
+      <form method="post" action="/auth/login">
+        <div class="field">
+          <label for="login-user-id">아이디</label>
+          <input id="login-user-id" name="user_id" type="text" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="login-passwd">비밀번호</label>
+          <input id="login-passwd" name="passwd" type="password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn-primary">로그인</button>
+      </form>
+    </div>
+
+    <div class="login-footer">
+      계정이 없으신가요?
+      <button type="button" onclick="openUserModal('signup')">회원가입</button>
+    </div>
+  </div>
+</div>
+
+<!-- 회원가입/사용자추가/사용자수정 공용 모달 -->
+{% include "partials/user_modal.html" %}
+
+<script src="/static/js/user_modal.js"></script>
+<script>
+  // 로그인 페이지 전용 후속 동작: 가입 완료되면 아이디를 로그인 폼에 채워준다.
+  document.addEventListener("user-modal:success", function (e) {
+    if (e.detail.mode !== "signup") return;
+    document.getElementById("login-user-id").value = e.detail.userId;
+    document.getElementById("login-passwd").focus();
+  });
+</script>
+</body>
+</html>
