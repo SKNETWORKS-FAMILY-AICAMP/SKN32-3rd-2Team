@@ -152,15 +152,17 @@ function renderTableSection(tbodyId, emptyMsgId, tableId, fileList) {
             <td class="col-date">${formatDate(file.uploaded)}</td>
             <td class="col-status">
                 ${
-                    file.vectorLoaded
-                    ? `<span class="status-badge loaded">적재완료</span>`
-                    : `
-                    <span class="status-badge not-loaded"
-                        onclick="loadVector(${file.id}, this)">
-                        <span class="normal-text">미적재</span>
-                        <span class="hover-text">적재하기</span>
-                    </span>
-                    `
+                    file.loading
+                    ? `<span class="status-badge not-loaded">로딩중...</span>`
+                    : file.vectorLoaded
+                        ? `<span class="status-badge loaded">적재완료</span>`
+                        : `
+                        <span class="status-badge not-loaded"
+                            onclick="loadVector(${file.id}, this)">
+                            <span class="normal-text">미적재</span>
+                            <span class="hover-text">적재하기</span>
+                        </span>
+                        `
                 }
             </td>
             <td class="col-date">${file.vectorLoadedDate ? formatDate(file.vectorLoadedDate) : '-'}</td>
@@ -359,11 +361,13 @@ async function handleFileUpload(file) {
             const result = await response.json();
             const fileIndex = files.findIndex(f => f.id === tempId);
             if (fileIndex > -1) {
-                files[fileIndex].id = result.doc_id;
-                files[fileIndex].storedFileName = result.stored_file_name;
-                files[fileIndex].loading = false;
-                renderAll();
-                selectFile(result.doc_id);
+                files.splice(fileIndex, 1);
+            }
+
+            await loadFiles();
+            const refreshedFile = files.find(f => f.id === result.doc_id);
+            if (refreshedFile) {
+                selectFile(refreshedFile.id);
             }
         } else {
             const error = await response.json();
