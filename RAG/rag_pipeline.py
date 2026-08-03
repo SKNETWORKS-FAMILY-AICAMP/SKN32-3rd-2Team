@@ -1,3 +1,4 @@
+import math
 import os
 import re
 from typing import List, Optional, Any
@@ -41,6 +42,56 @@ def _is_meaningful_chunk(content: str, *, min_length: int = 80) -> bool:
     return True
 
 
+def _tokenize(text: str) -> List[str]:
+    if not text:
+        return []
+    return re.findall(r"[가-힣a-zA-Z0-9]+", text.lower())
+
+
+def _calculate_bm25_scores(query: str, documents: List[str]) -> List[float]:
+    query_terms = _tokenize(query)
+    tokenized_docs = [_tokenize(doc) for doc in documents]
+
+    if not query_terms or not tokenized_docs:
+        return [0.0 for _ in documents]
+
+    try:
+        from rank_bm25 import BM25Okapi
+
+        bm25 = BM25Okapi(tokenized_docs)
+        scores = bm25.get_scores(query_terms)
+        return [float(score) for score in scores]
+    except Exception:
+        pass
+
+    doc_freq: dict[str, int] = {}
+    for terms in tokenized_docs:
+        unique_terms = set(terms)
+        for term in unique_terms:
+            doc_freq[term] = doc_freq.get(term, 0) + 1
+
+    n_docs = len(tokenized_docs)
+    avg_len = sum(len(terms) for terms in tokenized_docs) / max(1, n_docs)
+    scores: List[float] = []
+
+    for terms in tokenized_docs:
+        doc_len = len(terms)
+        score = 0.0
+        for term in query_terms:
+            if term not in doc_freq:
+                continue
+            freq = terms.count(term)
+            if freq == 0:
+                continue
+            idf = math.log((n_docs - doc_freq[term] + 0.5) / (doc_freq[term] + 0.5) + 1.0)
+            numerator = freq * (1.2 + 1.0)
+            denominator = freq + 1.2 * (1.0 - 0.75 + 0.75 * (doc_len / max(avg_len, 1)))
+            score += idf * (numerator / denominator)
+        scores.append(score)
+
+    return scores
+
+
 def preprocess_pages(pages: List[Any]) -> List[Any]:
     documents = []
     for idx, page in enumerate(pages):
@@ -62,8 +113,8 @@ def preprocess_pages(pages: List[Any]) -> List[Any]:
 def build_chunks_from_pages(
     pages: List[Any],
     *,
-    chunk_size: int = 800,
-    chunk_overlap: int = 120,
+    chunk_size: int = 400,
+    chunk_overlap: int = 80,
     separators: Optional[List[str]] = None,
 ) -> List[Any]:
     documents = preprocess_pages(pages)
@@ -71,7 +122,7 @@ def build_chunks_from_pages(
         return []
 
     if separators is None:
-        separators = ["\n\n", "\n", " ", ""]
+        separators = ["\n제", "\n\n", "\n", " ", ""]
 
     try:
         from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -106,6 +157,7 @@ def build_chunks_from_pages(
             "section_heading": content.splitlines()[0][:80] if content.splitlines() else content[:80],
             "source_file": metadata.get("source_file", "unknown.pdf"),
             "page_number": metadata.get("page_number", metadata.get("page", 1)),
+            "is_legal_text": True,
         })
 
         signature = re.sub(r"\s+", " ", content)
@@ -198,17 +250,28 @@ def search_across_vector_stores(
 
     candidates = sorted(candidates, key=lambda item: item["score"])[:initial_candidates]
 
+    candidate_texts = [item["content"] for item in candidates]
+    bm25_scores = _calculate_bm25_scores(query, candidate_texts)
+    max_bm25 = max(bm25_scores) if bm25_scores else 0.0
+    if max_bm25 > 0:
+        normalized_bm25 = [score / max_bm25 for score in bm25_scores]
+    else:
+        normalized_bm25 = [0.0 for _ in bm25_scores]
+
     pairs = [(query, item["content"]) for item in candidates]
     rerank_scores = reranker_model.predict(pairs)
 
-    reranked = sorted(
-        zip(candidates, rerank_scores),
-        key=lambda item: item[1],
-        reverse=True,
-    )
+    reranked = []
+    for index, candidate in enumerate(candidates):
+        rerank_score = float(rerank_scores[index])
+        bm25_score = float(normalized_bm25[index])
+        hybrid_score = (0.7 * rerank_score) + (0.3 * bm25_score)
+        reranked.append((candidate, rerank_score, bm25_score, hybrid_score))
+
+    reranked = sorted(reranked, key=lambda item: item[3], reverse=True)
 
     results = []
-    for candidate, _ in reranked[:top_k]:
+    for candidate, rerank_score, bm25_score, hybrid_score in reranked[:top_k]:
         metadata = dict(candidate.get("metadata", {}) or {})
         metadata.setdefault("doc_id", candidate.get("doc_id"))
         metadata.setdefault("source_file", metadata.get("source_file", "unknown.pdf"))
@@ -216,7 +279,10 @@ def search_across_vector_stores(
             "doc_id": candidate["doc_id"],
             "content": candidate["content"],
             "metadata": metadata,
-            "score": round(float(candidate["score"]), 4),
+            "score": round(float(hybrid_score), 4),
+            "rerank_score": round(float(rerank_score), 4),
+            "bm25_score": round(float(bm25_score), 4),
+            "faiss_score": round(float(candidate["score"]), 4),
         })
 
     return results

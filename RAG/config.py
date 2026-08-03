@@ -32,8 +32,8 @@ class Config:
     VECTOR_DB_COLLECTION = "rag_documents"
 
     # RAG 품질 관리 설정
-    CHUNK_SIZE = 800
-    CHUNK_OVERLAP = 120
+    CHUNK_SIZE = 400
+    CHUNK_OVERLAP = 80
     MIN_CHUNK_LENGTH = 80
     EMBEDDING_MODEL = "jhgan/ko-sroberta-multitask"
     RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
