@@ -107,13 +107,19 @@ def strip_unverifiable_citations(text: str, context: str, *, allow: bool = True)
 SEARCH_QUERY_MAX_CHARS = 500
 
 
-def _to_messages(req: ChatRequest, chunks: Sequence[RetrievedChunk]) -> list[Message]:
-    """대화 이력 + 이번 질문. 참고 문서는 마지막 사용자 턴에 붙인다."""
+def _to_messages(
+    req: ChatRequest, chunks: Sequence[RetrievedChunk], *, degraded: bool = False
+) -> list[Message]:
+    """대화 이력 + 이번 질문. 참고 문서는 마지막 사용자 턴에 붙인다.
+
+    `degraded` 를 넘기는 이유: 문서가 0건일 때 '검색이 실패했다' 와 '검색은 됐는데
+    관련 문서가 없다' 는 안내가 달라야 한다.
+    """
     messages = [
         Message(role="assistant" if turn.speaker == "llm" else "user", content=turn.message)
         for turn in req.history
     ]
-    context = build_answer_context(chunks)
+    context = build_answer_context(chunks, degraded=degraded)
     messages.append(Message(role="user", content=f"{context}\n\n[질문]\n{req.message}"))
     return messages
 
@@ -199,7 +205,7 @@ async def generate_answer(req: ChatRequest) -> ChatResponse:
             asyncio.gather(
                 provider.generate(
                     system=ANSWER_SYSTEM,
-                    messages=_to_messages(req, chunks),
+                    messages=_to_messages(req, chunks, degraded=degraded),
                     temperature=0.2,
                     max_tokens=settings.answer_max_tokens,
                 ),
@@ -274,7 +280,7 @@ async def stream_answer(req: ChatRequest) -> AsyncIterator[tuple[str, dict]]:
     try:
         stream = provider.stream(
             system=ANSWER_SYSTEM,
-            messages=_to_messages(req, chunks),
+            messages=_to_messages(req, chunks, degraded=degraded),
             temperature=0.2,
             max_tokens=settings.answer_max_tokens,
         )
