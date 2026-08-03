@@ -7,7 +7,7 @@ document.addEventListener("DOMContentLoaded", function () {
     loadUsers(1);
   });
 
-  // 행 클릭 -> 수정 모달 (SSR로 렌더된 행 / JS로 다시 그려진 행 모두 이벤트 위임으로 처리)
+  // 행 클릭 -> 수정 모달
   document.getElementById("user-list").addEventListener("click", function (e) {
     const tr = e.target.closest("tr");
     if (!tr) return;
@@ -71,13 +71,49 @@ async function loadUsers(page = 1) {
   renderPagination(data);
 }
 
+function getPageNumbers(current, total) {
+  const delta = 1;
+  const range = [];
+  const withDots = [];
+  let last;
+
+  for (let i = 1; i <= total; i++) {
+    if (i === 1 || i === total || (i >= current - delta && i <= current + delta)) {
+      range.push(i);
+    }
+  }
+
+  range.forEach(function (i) {
+    if (last !== undefined) {
+      if (i - last === 2) {
+        withDots.push(last + 1);
+      } else if (i - last > 2) {
+        withDots.push("...");
+      }
+    }
+    withDots.push(i);
+    last = i;
+  });
+
+  return withDots;
+}
+
 function renderPagination(data) {
   const container = document.querySelector("#pagination");
+  const { page, total_pages: totalPages } = data;
   let html = "";
 
-  for (let i = 1; i <= data.total_pages; i++) {
-    html += `<button class="${i === data.page ? "active" : ""}" onclick="loadUsers(${i})">${i}</button>`;
-  }
+  html += `<button ${page <= 1 ? "disabled" : ""} onclick="loadUsers(${page - 1})">&lt;</button>`;
+
+  getPageNumbers(page, totalPages).forEach(function (item) {
+    if (item === "...") {
+      html += `<span class="ellipsis">..</span>`;
+    } else {
+      html += `<button class="${item === page ? "active" : ""}" onclick="loadUsers(${item})">${item}</button>`;
+    }
+  });
+
+  html += `<button ${page >= totalPages ? "disabled" : ""} onclick="loadUsers(${page + 1})">&gt;</button>`;
 
   container.innerHTML = html;
 }

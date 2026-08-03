@@ -1,37 +1,44 @@
 import os
-import re
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import Depends, FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from .auth import (
-    SESSION_MAX_AGE_SECONDS,
-    clear_session,
-    create_session,
-    get_current_user,
-    hash_password,
-    require_login,
-    verify_password,
-)
-from .database import get_db
-from .models import User
-from .services.user_service import record_login
+from .auth import SESSION_MAX_AGE_SECONDS, get_current_user, require_login
+from .auth_router import router as auth_router
+from .database import warm_up as warm_up_db
 from app.admin.stats_router import router as stats_router
 from app.admin.user_router import router as users_router
 from app.chat.chat_router import router as chat_router
+from app.services.llm_client import ChatAPIError, warm_up as warm_up_chat_api
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-app = FastAPI(title="RAG 챗봇")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # DB는 로그인을 포함한 거의 모든 기능이 의존하는 필수 자원이라, 여기서 실패하면
+    # 예외를 그대로 올려서 서버 기동 자체를 실패시킨다 (조용히 넘어가면 첫 요청에서야
+    # DB가 안 된다는 걸 알게 되므로, 기동 시점에 바로 아는 게 낫다).
+    warm_up_db()
+
+    # Chat API httpx.Client를 미리 만들어둔다. 여기서 못 만들어도(CHAT_API_BASE_URL 미설정 등)
+    # 서버 자체는 정상적으로 떠야 하므로 조용히 넘어간다 - 실제 호출 시점에 다시 시도된다.
+    try:
+        warm_up_chat_api()
+    except ChatAPIError:
+        pass
+
+    yield
+
+app = FastAPI(title="RAG 챗봇", lifespan=lifespan)
 
 app.add_middleware(
     SessionMiddleware,
@@ -41,12 +48,11 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(stats_router)
 app.include_router(chat_router)
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
-
-USER_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{4,20}$")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -54,98 +60,6 @@ def root(request: Request):
     user = get_current_user(request)
     if user:
         return RedirectResponse(url="/main", status_code=303)
-    return RedirectResponse(url="/login", status_code=303)
-
-
-@app.get("/login", response_class=HTMLResponse)
-def login_page(request: Request):
-    user = get_current_user(request)
-    if user:
-        return RedirectResponse(url="/main", status_code=303)
-    return templates.TemplateResponse(request, "login.html", {"error": None})
-
-
-@app.post("/auth/login")
-def login_submit(
-    request: Request,
-    user_id: str = Form(...),
-    passwd: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    user = db.get(User, user_id)
-
-    if user is None or not verify_password(passwd, user.passwd):
-        return templates.TemplateResponse(
-            request,
-            "login.html",
-            {"error": "아이디 또는 비밀번호가 올바르지 않습니다."},
-            status_code=401,
-        )
-
-    if user.is_disabled:
-        return templates.TemplateResponse(
-            request,
-            "login.html",
-            {"error": "비활성화된 계정입니다. 관리자에게 문의하세요."},
-            status_code=403,
-        )
-
-    create_session(request, user.user_id, user.name, user.is_admin)
-    record_login(db, user.user_id)
-    return RedirectResponse(url="/main", status_code=303)
-
-
-@app.post("/auth/signup")
-def signup_submit(
-    request: Request,
-    user_id: str = Form(...),
-    passwd: str = Form(...),
-    passwd_confirm: str = Form(...),
-    name: str = Form(...),
-    department: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    if not USER_ID_PATTERN.match(user_id):
-        return JSONResponse(
-            status_code=400,
-            content={"detail": "아이디는 영문/숫자 4~20자로 입력해주세요."},
-        )
-
-    if len(passwd) < 8:
-        return JSONResponse(
-            status_code=400,
-            content={"detail": "비밀번호는 8자 이상이어야 합니다."},
-        )
-
-    if passwd != passwd_confirm:
-        return JSONResponse(
-            status_code=400,
-            content={"detail": "비밀번호가 일치하지 않습니다."},
-        )
-
-    if db.get(User, user_id) is not None:
-        return JSONResponse(
-            status_code=409,
-            content={"detail": "이미 사용 중인 아이디입니다."},
-        )
-
-    new_user = User(
-        user_id=user_id,
-        passwd=hash_password(passwd),
-        name=name,
-        department=department,
-        is_admin=False,
-        is_disabled=False,
-    )
-    db.add(new_user)
-    db.commit()
-
-    return JSONResponse(status_code=201, content={"detail": "회원가입이 완료되었습니다. 로그인해주세요."})
-
-
-@app.post("/auth/logout")
-def logout(request: Request):
-    clear_session(request)
     return RedirectResponse(url="/login", status_code=303)
 
 

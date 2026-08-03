@@ -8,6 +8,8 @@
   const submitBtn = document.getElementById("user-modal-submit");
 
   const userIdInput = document.getElementById("user-modal-user-id");
+  const checkIdBtn = document.getElementById("check-user-id-btn");
+  const checkIdResult = document.getElementById("user-id-check-result");
   const passwdInput = document.getElementById("user-modal-passwd");
   const passwdConfirmInput = document.getElementById("user-modal-passwd-confirm");
   const passwdConfirmField = document.getElementById("field-passwd-confirm");
@@ -55,6 +57,9 @@
 
     userIdInput.value = prefill.userId || "";
     userIdInput.readOnly = !config.userIdEditable;
+    checkIdBtn.classList.toggle("hidden", !config.userIdEditable);
+    checkIdResult.className = "field-hint";
+    checkIdResult.textContent = "";
 
     passwdInput.value = "";
     passwdInput.required = config.passwdRequired;
@@ -93,6 +98,40 @@
   });
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && overlay.classList.contains("open")) closeModal();
+  });
+
+  userIdInput.addEventListener("input", function () {
+    checkIdResult.className = "field-hint";
+    checkIdResult.textContent = "";
+  });
+
+  checkIdBtn.addEventListener("click", async function () {
+    const id = userIdInput.value.trim();
+
+    if (!id) {
+      checkIdResult.className = "field-hint error";
+      checkIdResult.textContent = "아이디를 입력해주세요.";
+      return;
+    }
+
+    checkIdResult.className = "field-hint";
+    checkIdResult.textContent = "확인 중...";
+
+    try {
+      const res = await fetch(`/auth/check-user-id?user_id=${encodeURIComponent(id)}`);
+      const data = await res.json();
+
+      if (data.available) {
+        checkIdResult.className = "field-hint success";
+        checkIdResult.textContent = data.detail || "사용 가능한 아이디입니다.";
+      } else {
+        checkIdResult.className = "field-hint error";
+        checkIdResult.textContent = data.detail || "이미 사용 중인 아이디입니다.";
+      }
+    } catch (err) {
+      checkIdResult.className = "field-hint error";
+      checkIdResult.textContent = "확인 중 오류가 발생했습니다.";
+    }
   });
 
   form.addEventListener("submit", async function (e) {

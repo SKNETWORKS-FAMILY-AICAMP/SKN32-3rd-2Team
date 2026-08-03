@@ -4,28 +4,35 @@
 
 {% block content %}
 <div class="admin-panel">
-  <div class="panel-head">
-    <div>
-      <div class="eyebrow">유저관리</div>
-      <h1 class="panel-title">유저관리</h1>
-    </div>
-    <button type="button" class="btn-secondary" onclick="openUserModal('create')">유저 추가</button>
-  </div>
+  <h1 class="panel-title" style="margin-bottom: 20px;">유저관리</h1>
 
   <div class="filter-bar">
-    <input id="f-name" type="text" placeholder="이름 검색">
-    <input id="f-department" type="text" placeholder="부서 검색">
-    <select id="f-is-admin">
-      <option value="">전체 권한</option>
-      <option value="true">관리자</option>
-      <option value="false">일반</option>
-    </select>
-    <select id="f-is-disabled">
-      <option value="">전체 상태</option>
-      <option value="false">활성</option>
-      <option value="true">비활성</option>
-    </select>
+    <div class="field-inline">
+      <label for="f-name">이름</label>
+      <input id="f-name" type="text" placeholder="이름 검색">
+    </div>
+    <div class="field-inline">
+      <label for="f-department">부서</label>
+      <input id="f-department" type="text" placeholder="부서 검색">
+    </div>
+    <div class="field-inline">
+      <label for="f-is-admin">권한</label>
+      <select id="f-is-admin">
+        <option value="">전체 권한</option>
+        <option value="true">관리자</option>
+        <option value="false">일반</option>
+      </select>
+    </div>
+    <div class="field-inline">
+      <label for="f-is-disabled">상태</label>
+      <select id="f-is-disabled">
+        <option value="">전체 상태</option>
+        <option value="false">활성</option>
+        <option value="true">비활성</option>
+      </select>
+    </div>
     <button type="button" id="f-search" class="btn-secondary">검색</button>
+    <button type="button" class="btn-secondary outline" onclick="openUserModal('create')">유저 추가</button>
   </div>
 
   <table class="data-table">
@@ -39,8 +46,7 @@
         <th>가입일</th>
       </tr>
     </thead>
-    <tbody id="user-list">
-    </tbody>
+    <tbody id="user-list"></tbody>
   </table>
 
   <div id="pagination" class="pagination"></div>
@@ -54,7 +60,6 @@
 <script src="/static/js/user_modal.js"></script>
 <script src="/static/js/users.js"></script>
 <script>
-  // 유저 추가/수정 모달 제출이 성공하면 목록을 새로고침한다.
   document.addEventListener("user-modal:success", function () {
     loadUsers(currentPage);
   });

@@ -52,6 +52,17 @@ a:focus-visible {
   outline-offset: 2px;
 }
 
+/* ---------- 브랜드 로고 ---------- */
+.brand .brand-logo {
+  height: 66px;
+  width: auto;
+}
+
+.brand .brand-logo-login {
+  height: 160px;
+  width: auto;
+}
+
 /* ---------- 공통 폼 요소 ---------- */
 .field {
   margin-bottom: 18px;
@@ -89,6 +100,68 @@ a:focus-visible {
 
 .field-row .field {
   flex: 1;
+}
+
+.field-hint {
+  font-size: 12px;
+  color: var(--ink-400);
+}
+
+.field-hint.success {
+  color: var(--success);
+}
+
+.field-hint.error {
+  color: var(--danger);
+}
+
+.input-with-button {
+  display: flex;
+  gap: 8px;
+}
+
+.input-with-button input {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-check-duplicate {
+  flex: none;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent-600);
+  background: var(--accent-100);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-check-duplicate:hover {
+  background: var(--accent-600);
+  color: var(--surface);
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-600);
+  cursor: pointer;
+}
+
+.checkbox-field input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-600);
+  cursor: pointer;
+}
+
+.hidden {
+  display: none !important;
 }
 
 .btn-primary {
@@ -165,16 +238,6 @@ a:focus-visible {
   text-align: center;
 }
 
-.brand .brand-logo {
-  height: 66px;
-  width: auto;
-}
-
-.brand .brand-logo-login {
-  height: 160px;
-  width: auto;
-}
-
 .login-footer {
   margin-top: 22px;
   font-size: 13px;
@@ -228,7 +291,7 @@ a:focus-visible {
   max-width: 420px;
 }
 
-/* 시그니처 요소: 문서 인증 마크를 연상시키는 코너 브래킷 */
+/* 시그니처 요소: 문서 인증 마크를 연상시키는 코너 브래킷 (로그인 카드에만 적용, 모달에는 없음) */
 .login-card::before,
 .login-card::after,
 .login-card .corner-bl,
@@ -301,32 +364,6 @@ a:focus-visible {
 
 .modal-close:hover {
   color: var(--ink-900);
-}
-
-.field-hint {
-  font-size: 12px;
-  color: var(--ink-400);
-}
-
-.checkbox-field {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ink-600);
-  cursor: pointer;
-}
-
-.checkbox-field input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent-600);
-  cursor: pointer;
-}
-
-.hidden {
-  display: none !important;
 }
 
 /* ---------- 메인(로그인 후) 화면 : 공통 헤더/사이드바 ---------- */
@@ -488,7 +525,7 @@ a:focus-visible {
 
 /* ---------- 관리자 : 유저관리 화면 ---------- */
 .admin-panel {
-  max-width: 960px;
+  /* 최대폭 제한 없이 app-content 우측 패딩까지 꽉 채움 */
 }
 
 .panel-head {
@@ -503,14 +540,27 @@ a:focus-visible {
   font-size: 24px;
   font-weight: 700;
   color: var(--navy-900);
-  margin: 4px 0 0;
+  margin: 0;
 }
 
 .filter-bar {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-end;
   gap: 10px;
   margin-bottom: 18px;
+}
+
+.filter-bar .field-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-bar label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-600);
 }
 
 .filter-bar input,
@@ -541,6 +591,16 @@ a:focus-visible {
 
 .btn-secondary:hover {
   background: var(--accent-500);
+}
+
+.btn-secondary.outline {
+  background: var(--surface);
+  color: var(--accent-600);
+  border: 1px solid var(--accent-600);
+}
+
+.btn-secondary.outline:hover {
+  background: var(--accent-100);
 }
 
 .data-table {
@@ -594,6 +654,8 @@ a:focus-visible {
 
 .pagination {
   display: flex;
+  justify-content: center;
+  align-items: center;
   gap: 6px;
   margin-top: 16px;
 }
@@ -893,6 +955,24 @@ a:focus-visible {
 .chat-input-bar .btn-primary {
   width: auto;
   padding: 12px 22px;
+}
+
+.pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination button:disabled:hover {
+  border-color: var(--line-200);
+  color: var(--ink-600);
+}
+
+.pagination .ellipsis {
+  min-width: 32px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-400);
+  user-select: none;
 }
 
 @media (max-width: 640px) {
