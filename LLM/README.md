@@ -4,12 +4,20 @@
 
 > 담당: Member D · 브랜치 `LLM` · 포트 `8002`
 
-## 명세서 두 종류
+## 문서 안내
 
-| 문서 | 방향 | 받는 사람 |
-|---|---|---|
-| [docs/API.md](docs/API.md) | **제공** — 이 서비스가 노출하는 API | WEB 파트 (챗봇 서버 / 프론트, 8000) |
-| [docs/RAG_REQUIRED_API.md](docs/RAG_REQUIRED_API.md) | **요청** — 이 서비스가 필요로 하는 API | RAG 파트 (Member C, 8001) |
+**코드를 처음 보신다면 [docs/CODE_GUIDE.md](docs/CODE_GUIDE.md) 부터 읽으세요.**
+폴더 구조, 요청이 흐르는 순서, 성능을 어떻게 올렸는지가 한 곳에 정리돼 있습니다.
+
+| 문서 | 내용 |
+|---|---|
+| [docs/CODE_GUIDE.md](docs/CODE_GUIDE.md) | **코드 구조 · 요청 흐름 · 성능 개선 정리** |
+| [docs/PERFORMANCE_REPORT.md](docs/PERFORMANCE_REPORT.md) | 측정 결과 (자동 생성) |
+| [docs/API.md](docs/API.md) | **제공** — 이 서비스가 노출하는 API → WEB 파트(8000) |
+| [docs/RAG_REQUIRED_API.md](docs/RAG_REQUIRED_API.md) | **요청** — 이 서비스가 필요로 하는 API → RAG 파트(8001) |
+| [docs/RAG_FEEDBACK.md](docs/RAG_FEEDBACK.md) | 연동하며 발견한 사항 → RAG 파트 |
+| [docs/WEB_INTEGRATION_REPORT.md](docs/WEB_INTEGRATION_REPORT.md) | WEB 연동 확인 결과 |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | 08/03 오전 기준 검토 기록 (낡음, 이력용) |
 
 ---
 
