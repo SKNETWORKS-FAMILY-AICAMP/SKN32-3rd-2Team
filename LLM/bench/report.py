@@ -153,8 +153,10 @@ def load_runs(expected: int) -> tuple[list[Run], list[str]]:
             continue
         # 중간에 끊긴 실행을 그대로 집계하면 '문항 수가 적어서' 정확도가
         # 높아 보이는 착시가 생긴다. 조용히 섞이지 않게 막는다.
+        # 문항 수는 늘어난다(회귀를 잡으려고 실패 사례를 추가한다). 그래서
+        # "정확히 N개" 가 아니라 "N개 이상" 으로 본다. 중단된 실행만 걸러내면 된다.
         if len(rows) < expected:
-            skipped.append(f"{path.name}: {len(rows)}/{expected}문항 (중단됨)")
+            skipped.append(f"{path.name}: {len(rows)}문항 (중단됨, {expected}개 미만)")
             continue
         # 전부 실패한 실행은 아무것도 측정하지 못한 것이다. 표에 넣으면
         # 정확도 0% 로 찍혀 '성능이 나쁘다' 로 오독된다 — 성능이 아니라
@@ -238,6 +240,12 @@ def md_table(header: list[str], rows: list[list[str]]) -> str:
 
 
 def build(runs: list[Run], skipped: list[str], expected: int) -> str:
+    # 문항 수는 questions.yaml 이 단일 출처다. expected 는 '중단 실행 걸러내기' 용.
+    import yaml
+
+    question_count = len(
+        yaml.safe_load((BENCH_DIR / "questions.yaml").read_text(encoding="utf-8"))["questions"]
+    )
     tokens = load_tokens()
     by_tag = defaultdict(list)
     for r in runs:
@@ -304,7 +312,7 @@ def build(runs: list[Run], skipped: list[str], expected: int) -> str:
 
 ## 1. 측정 방법과 그 한계
 
-`bench/questions.yaml` 의 **{expected}문항**을 실제 서비스 경로(`generate_answer`)로
+`bench/questions.yaml` 의 **{question_count}문항**을 실제 서비스 경로(`generate_answer`)로
 돌려 문항별 결과를 JSONL 로 남기고 집계했다. 문항은 실제 코퍼스(PDF 28개)에서
 뽑았고, 같은 의도를 다르게 물은 **패러프레이즈 묶음 7개**와 **범위 밖 질문 3개**를
 섞었다.
@@ -318,7 +326,7 @@ def build(runs: list[Run], skipped: list[str], expected: int) -> str:
 
 이렇게 나눈 이유는 두 가지다. 첫째, 둘을 섞으면 점수가 나빠졌을 때 검색을 고쳐야
 할지 프롬프트를 고쳐야 할지 알 수 없다. 둘째, 실제 RAG 는 현재 검색 한 번에 30초가
-걸려 {expected}문항 한 조건에 17분이 든다 — 프롬프트를 고쳐가며 비교하는 루프를
+걸려 {question_count}문항 한 조건에 17분이 든다 — 프롬프트를 고쳐가며 비교하는 루프를
 돌릴 수 없다.
 
 측정 지표는 다음과 같다.
@@ -423,7 +431,7 @@ def build(runs: list[Run], skipped: list[str], expected: int) -> str:
 프롬프트가 "3~6문장 이내" 를 요구하지만 이는 지시일 뿐이라 모델이 안 지킬 수 있다.
 Qwen2.5:7b 는 한 문항에 2,415자를 **57초**에 걸쳐 뱉었다. 디코더 단에서 막으니
 같은 조건에서 최대 지연이 57초 → 13.9초로 내려갔고 주제 정확도는 그대로였다.
-OpenAI 도 {expected}문항 총 소요가 110초 → 65초로 줄었다.
+OpenAI 도 34문항 총 소요가 110초 → 65초로 줄었다.
 """)
 
     if qwen_rows:
@@ -468,15 +476,19 @@ OpenAI 도 {expected}문항 총 소요가 110초 → 65초로 줄었다.
                 f"`{r['question_id']}`",
                 r["question"],
                 ", ".join(r["expected_sources"]),
-                ", ".join(sorted({s.split(" p.")[0] for s in r["got_sources"]})),
+                ", ".join(sorted({s.split(" p.")[0] for s in r["got_sources"]}))
+                or "(관련도 미달로 전부 제외)",
             ]
             for r in missed
         ]
         parts.append(f"""
 ## 5. 실제 RAG 연동 (end-to-end)
 
-같은 34문항을 **실제 RAG 서비스**(port 8001)로 다시 돌린 결과다. 1절에서 말한
-"검색이 깎아먹은 몫"이 여기서 드러난다.
+**실제 RAG 서비스**(port 8001)로 돌린 결과다. 1절에서 말한 "검색이 깎아먹은 몫"이
+여기서 드러난다.
+
+> 두 줄의 문항 수가 다르다({len(openai_final.rows)}개 / {len(e2e.rows)}개).
+> 실사용에서 발견한 실패 사례를 문항으로 추가했기 때문이다. 비율로 비교할 것.
 
 {md_table(
     ["검색 방식", "주제 정확도", "검색 recall", "p50", "p95", "에러"],
