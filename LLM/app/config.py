@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     )
 
     # --- 서비스 ---
-    llm_service_port: int = 8001
+    llm_service_port: int = 8002
     default_provider: Literal["openai", "gemini"] = "openai"
     llm_timeout_sec: float = 5.0
 
@@ -33,11 +33,11 @@ class Settings(BaseSettings):
 
     # --- Gemini ---
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-3.5-flash"
 
     # --- RAG ---
     rag_mode: Literal["live", "mock"] = "mock"
-    rag_base_url: str = "http://localhost:8002"
+    rag_base_url: str = "http://localhost:8001"
     rag_timeout_sec: float = 3.0
     rag_top_k: int = 5
 
