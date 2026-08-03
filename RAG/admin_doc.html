@@ -11,21 +11,32 @@
         <!-- 좌측 파일 탐색기 -->
         <div class="file-explorer" id="fileExplorer">
             <div class="explorer-content">
-                <!-- 대한민국 공통 법률 섹션 -->
-                <div class="section-header common-laws-header">
-                    <div class="section-title">🇰🇷 대한민국 공통 법률</div>
-                    <span class="section-count" id="commonCount">0</span>
+                <div class="explorer-toolbar">
+                    <div class="view-toggle-group" role="group" aria-label="파일 보기 방식">
+                        <button type="button" class="view-toggle-btn active" data-view="list">☰ 리스트</button>
+                        <button type="button" class="view-toggle-btn" data-view="grid">▦ 큐브</button>
+                    </div>
                 </div>
-                <div class="file-list" id="commonFileList">
+
+                <!-- 대한민국 공통 법률 섹션 -->
+                <div class="section-header common-laws-header accordion-header" data-section="common">
+                    <button type="button" class="section-toggle" data-section="common" aria-expanded="true">
+                        <span class="section-title">🇰🇷 대한민국 공통 법률</span>
+                        <span class="section-count" id="commonCount">0</span>
+                    </button>
+                </div>
+                <div class="file-list accordion-content" id="commonFileList" data-section="common">
                     <!-- 공통 법률 파일들이 여기에 동적으로 추가됨 -->
                 </div>
 
                 <!-- 일반 문서 섹션 -->
-                <div class="section-header">
-                    <div class="section-title">📄 일반 문서</div>
-                    <span class="section-count" id="docCount">0</span>
+                <div class="section-header accordion-header" data-section="doc">
+                    <button type="button" class="section-toggle" data-section="doc" aria-expanded="true">
+                        <span class="section-title">📄 일반 문서</span>
+                        <span class="section-count" id="docCount">0</span>
+                    </button>
                 </div>
-                <div class="file-list" id="docFileList">
+                <div class="file-list accordion-content" id="docFileList" data-section="doc">
                     <!-- doc_* 파일들이 여기에 동적으로 추가됨 -->
                 </div>
             </div>

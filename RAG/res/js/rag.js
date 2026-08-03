@@ -1,16 +1,99 @@
 // 파일 데이터 관리
 let files = [];
 let selectedFileId = null;
+let currentViewMode = 'list';
 const API_BASE_URL = '/api';
 const PDF_ICON_PATH = '/res/img/icon_pdf.png';
+const VIEW_MODE_STORAGE_KEY = 'rag_explorer_view_mode';
+const ACCORDION_STATE_STORAGE_KEY = 'rag_explorer_accordion_state';
 
 // 초기화
 document.addEventListener('DOMContentLoaded', function() {
+    restoreViewMode();
+    restoreAccordionState();
+    setupViewToggle();
+    setupAccordionToggle();
     loadFiles();
     setupDragAndDrop();
     setupFileInput();
     setupResizer();
 });
+
+function restoreViewMode() {
+    const savedMode = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+    currentViewMode = savedMode === 'grid' ? 'grid' : 'list';
+}
+
+function setViewMode(mode) {
+    currentViewMode = mode === 'grid' ? 'grid' : 'list';
+    localStorage.setItem(VIEW_MODE_STORAGE_KEY, currentViewMode);
+    updateViewToggleButtons();
+    renderFileList();
+}
+
+function setupViewToggle() {
+    document.querySelectorAll('.view-toggle-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            setViewMode(button.dataset.view || 'list');
+        });
+    });
+    updateViewToggleButtons();
+}
+
+function updateViewToggleButtons() {
+    document.querySelectorAll('.view-toggle-btn').forEach(button => {
+        const isActive = (button.dataset.view || 'list') === currentViewMode;
+        button.classList.toggle('active', isActive);
+    });
+}
+
+function restoreAccordionState() {
+    const savedState = localStorage.getItem(ACCORDION_STATE_STORAGE_KEY);
+    if (!savedState) {
+        return;
+    }
+
+    try {
+        const state = JSON.parse(savedState);
+        document.querySelectorAll('.section-toggle').forEach(button => {
+            const section = button.dataset.section;
+            const expanded = state[section] !== false;
+            button.setAttribute('aria-expanded', String(expanded));
+            const content = document.querySelector(`.accordion-content[data-section="${section}"]`);
+            if (content) {
+                content.classList.toggle('collapsed', !expanded);
+            }
+        });
+    } catch (error) {
+        console.error('Failed to restore accordion state:', error);
+    }
+}
+
+function saveAccordionState() {
+    const state = {};
+    document.querySelectorAll('.section-toggle').forEach(button => {
+        const section = button.dataset.section;
+        state[section] = button.getAttribute('aria-expanded') === 'true';
+    });
+    localStorage.setItem(ACCORDION_STATE_STORAGE_KEY, JSON.stringify(state));
+}
+
+function setupAccordionToggle() {
+    document.querySelectorAll('.section-toggle').forEach(button => {
+        button.addEventListener('click', () => {
+            const section = button.dataset.section;
+            const expanded = button.getAttribute('aria-expanded') === 'true';
+            const nextExpanded = !expanded;
+
+            button.setAttribute('aria-expanded', String(nextExpanded));
+            const content = document.querySelector(`.accordion-content[data-section="${section}"]`);
+            if (content) {
+                content.classList.toggle('collapsed', !nextExpanded);
+            }
+            saveAccordionState();
+        });
+    });
+}
 
 // stored_file_name 접두사로 파일 분류
 function isCommonFile(storedFileName) {
@@ -89,6 +172,10 @@ function renderFileList() {
 
     commonList.innerHTML = '';
     docList.innerHTML = '';
+    commonList.classList.toggle('grid-view', currentViewMode === 'grid');
+    docList.classList.toggle('grid-view', currentViewMode === 'grid');
+    commonList.classList.toggle('list-view', currentViewMode !== 'grid');
+    docList.classList.toggle('list-view', currentViewMode !== 'grid');
 
     const commonFiles = getCommonFiles();
     const docFiles = getDocFiles();
@@ -185,7 +272,7 @@ function updatePanelSummary() {
 // 파일 아이템 생성 (좌측 탐색기)
 function createFileItem(file) {
     const fileItem = document.createElement('div');
-    fileItem.className = 'file-item';
+    fileItem.className = currentViewMode === 'grid' ? 'file-item grid-item' : 'file-item';
     fileItem.dataset.fileId = file.id;
 
     if (file.loading) {
@@ -203,10 +290,22 @@ function createFileItem(file) {
     iconImg.alt = 'PDF';
     iconDiv.appendChild(iconImg);
 
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'file-item-content';
+
     const nameDiv = document.createElement('div');
     nameDiv.className = 'file-name';
     nameDiv.textContent = file.loading ? '업로드 중...' : file.name;
     nameDiv.title = file.name;
+
+    contentDiv.appendChild(nameDiv);
+
+    if (currentViewMode === 'grid') {
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'file-meta';
+        metaDiv.textContent = formatFileSize(file.size);
+        contentDiv.appendChild(metaDiv);
+    }
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'delete-btn';
@@ -217,7 +316,7 @@ function createFileItem(file) {
     };
 
     fileItem.appendChild(iconDiv);
-    fileItem.appendChild(nameDiv);
+    fileItem.appendChild(contentDiv);
     fileItem.appendChild(deleteBtn);
 
     fileItem.onclick = function() {
@@ -229,17 +328,23 @@ function createFileItem(file) {
 
 // 파일 선택 (좌측·우측 동기화)
 function selectFile(fileId) {
-    selectedFileId = fileId;
+    const isSameSelection = selectedFileId === fileId;
+    selectedFileId = isSameSelection ? null : fileId;
 
     document.querySelectorAll('.file-item').forEach(item => {
-        item.classList.toggle('active', parseInt(item.dataset.fileId) === fileId);
+        item.classList.toggle('active', parseInt(item.dataset.fileId) === selectedFileId);
     });
 
     document.querySelectorAll('.file-table-row').forEach(row => {
-        row.classList.toggle('active', parseInt(row.dataset.fileId) === fileId);
+        row.classList.toggle('active', parseInt(row.dataset.fileId) === selectedFileId);
     });
 
-    const file = files.find(f => f.id === fileId);
+    if (selectedFileId === null) {
+        document.getElementById('panelTitle').textContent = '문서 목록';
+        return;
+    }
+
+    const file = files.find(f => f.id === selectedFileId);
     if (file) {
         document.getElementById('panelTitle').textContent = file.name;
     }
