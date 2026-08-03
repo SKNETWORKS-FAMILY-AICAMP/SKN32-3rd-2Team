@@ -57,7 +57,7 @@ def list_chatrooms(db: Session, user_id: str) -> list[dict]:
 
 
 def get_owned_chatroom(db: Session, chatroom_id: str, user_id: str) -> Chatroom:
-    """대화방을 조회하고, 존재/소유자 여부를 함께 검증한다. 타 유저의 대화방 접근을 차단한다."""
+    """대화방을 조회하고, 존재/소유자 여부를 함께 검증한다. 타 사용자의 대화방 접근을 차단한다."""
 
     chatroom = db.get(Chatroom, chatroom_id)
     if chatroom is None or chatroom.is_deleted or chatroom.user_id != user_id:

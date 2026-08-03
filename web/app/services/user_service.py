@@ -17,7 +17,7 @@ def record_login(db: Session, user_id: str) -> None:
 
 
 class UserServiceError(Exception):
-    """유저 생성/수정/삭제 중 발생하는 검증 오류. 라우터에서 status_code로 매핑해서 응답한다."""
+    """사용자 생성/수정/삭제 중 발생하는 검증 오류. 라우터에서 status_code로 매핑해서 응답한다."""
 
     def __init__(self, message: str, status_code: int = 400):
         super().__init__(message)
@@ -35,7 +35,7 @@ def create_user_by_admin(
     is_admin: bool | None = None,
     is_disabled: bool | None = None,
 ) -> User:
-    """관리자가 '유저 추가' 모달에서 신규 계정을 생성한다. (회원가입과 동일한 검증 규칙)"""
+    """관리자가 '사용자 추가' 모달에서 신규 계정을 생성한다. (회원가입과 동일한 검증 규칙)"""
 
     if not USER_ID_PATTERN.match(user_id):
         raise UserServiceError("아이디는 영문/숫자 4~20자로 입력해주세요.")
@@ -72,7 +72,7 @@ def update_user_profile(
     is_admin: bool | None = None,
     is_disabled: bool | None = None,
 ) -> User:
-    """유저관리 화면의 수정 모달: 이름 / 부서명 / 비밀번호 / 관리자권한 / 비활성여부를 수정한다.
+    """사용자 관리 화면의 수정 모달: 이름 / 부서명 / 비밀번호 / 관리자권한 / 비활성여부를 수정한다.
     (user_id는 이 경로로 변경할 수 없다)"""
 
     user = _get_active_user_or_404(db, user_id)
@@ -100,9 +100,9 @@ def update_user_profile(
 
 
 def delete_user_by_admin(db: Session, user_id: str, current_admin_id: str) -> None:
-    """유저관리 수정 모달의 '계정 삭제' 버튼. 소프트 삭제(is_deleted=True)로 처리한다.
+    """사용자 관리 수정 모달의 '계정 삭제' 버튼. 소프트 삭제(is_deleted=True)로 처리한다.
 
-    실제로 행을 지우지 않는 이유: chatroom/chat/user_login_history가 이 유저를
+    실제로 행을 지우지 않는 이유: chatroom/chat/user_login_history가 이 사용자를
     참조(FK)하고 있어서, 하드 삭제하면 그 기록들이 깨지거나 별도 처리가 필요해진다.
     """
 
@@ -132,7 +132,7 @@ def get_user_list_by_params(
     page: int = 1,
     size: int = 20,
 ):
-    """조건에 맞는 유저 목록을 페이지 단위로 조회한다. 삭제된 계정은 제외한다.
+    """조건에 맞는 사용자 목록을 페이지 단위로 조회한다. 삭제된 계정은 제외한다.
     admin/users.py의 페이지 라우트와 API 라우트가 이 함수를 공유한다."""
 
     page = max(page, 1)

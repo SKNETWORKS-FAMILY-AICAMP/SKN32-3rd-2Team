@@ -1,10 +1,10 @@
 {% extends "layout/app_base.html" %}
 
-{% block title %}유저관리{% endblock %}
+{% block title %}사용자 관리{% endblock %}
 
 {% block content %}
 <div class="admin-panel">
-  <h1 class="panel-title" style="margin-bottom: 20px;">유저관리</h1>
+  <h1 class="panel-title" style="margin-bottom: 20px;">사용자 관리</h1>
 
   <div class="filter-bar">
     <div class="field-inline">
@@ -32,7 +32,7 @@
       </select>
     </div>
     <button type="button" id="f-search" class="btn-secondary">검색</button>
-    <button type="button" class="btn-secondary outline" onclick="openUserModal('create')">유저 추가</button>
+    <button type="button" class="btn-secondary outline" onclick="openUserModal('create')">사용자 추가</button>
   </div>
 
   <table class="data-table">
@@ -52,7 +52,7 @@
   <div id="pagination" class="pagination"></div>
 </div>
 
-<!-- 회원가입/유저추가/유저수정 공용 모달 -->
+<!-- 회원가입/사용자추가/사용자수정 공용 모달 -->
 {% include "partials/user_modal.html" %}
 {% endblock %}
 

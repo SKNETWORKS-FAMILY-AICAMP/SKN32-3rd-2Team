@@ -74,7 +74,7 @@ def create_user_api(
     is_disabled: bool | None = Form(None),
     db: Session = Depends(get_db),
 ):
-    """유저관리 화면의 '유저 추가' 모달(회원가입 모달 재사용) 제출이 여기로 들어온다.
+    """사용자 관리 화면의 '사용자 추가' 모달(회원가입 모달 재사용) 제출이 여기로 들어온다.
     공개 회원가입(/auth/signup)과 달리 관리자 권한이 있어야 호출 가능하다."""
     require_admin_api(request)
 
@@ -83,7 +83,7 @@ def create_user_api(
     except UserServiceError as e:
         return JSONResponse(status_code=e.status_code, content={"detail": e.message})
 
-    return JSONResponse(status_code=201, content={"detail": "유저가 추가되었습니다."})
+    return JSONResponse(status_code=201, content={"detail": "사용자가 추가되었습니다."})
 
 
 @router.patch("/api/{user_id}")
@@ -97,7 +97,7 @@ def update_user_api(
     is_disabled: bool | None = Form(None),
     db: Session = Depends(get_db),
 ):
-    """유저관리 테이블의 행을 클릭하면 뜨는 수정 모달 제출.
+    """사용자 관리 테이블의 행을 클릭하면 뜨는 수정 모달 제출.
     이름/부서명/비밀번호/관리자권한/비활성여부를 변경할 수 있다."""
     require_admin_api(request)
 
@@ -119,7 +119,7 @@ def update_user_api(
 
 @router.delete("/api/{user_id}")
 def delete_user_api(request: Request, user_id: str, db: Session = Depends(get_db)):
-    """유저관리 수정 모달의 '계정 삭제' 버튼. 본인 계정은 삭제할 수 없다."""
+    """사용자 관리 수정 모달의 '계정 삭제' 버튼. 본인 계정은 삭제할 수 없다."""
     admin = require_admin_api(request)
 
     try:

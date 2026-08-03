@@ -66,7 +66,7 @@ def login_submit(
 
 @router.get("/auth/check-user-id")
 def check_user_id(user_id: str, db: Session = Depends(get_db)):
-    """회원가입/유저추가 모달의 '중복확인' 버튼이 호출하는 엔드포인트."""
+    """회원가입/사용자추가 모달의 '중복확인' 버튼이 호출하는 엔드포인트."""
     if not USER_ID_PATTERN.match(user_id):
         return JSONResponse(
             status_code=400,
