@@ -62,6 +62,11 @@ class GeminiProvider(LLMProvider):
             getattr(meta, "candidates_token_count", None),
         )
 
+    async def preconnect(self) -> None:
+        # 모델 목록 조회는 토큰도, generate_content 쿼터도 쓰지 않으면서
+        # 같은 호스트(generativelanguage.googleapis.com)로 붙는다.
+        await self._client.aio.models.list()
+
     async def generate(
         self,
         *,

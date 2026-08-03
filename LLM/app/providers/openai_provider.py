@@ -39,6 +39,11 @@ class OpenAIProvider(LLMProvider):
             {"role": m.role, "content": m.content} for m in messages
         ]
 
+    async def preconnect(self) -> None:
+        # 모델 목록 조회는 토큰을 쓰지 않으면서 같은 호스트로 붙으므로,
+        # 커넥션 풀에 TLS 연결이 남는다. 그 뒤 chat.completions 가 재사용한다.
+        await self._client.models.list()
+
     async def generate(
         self,
         *,

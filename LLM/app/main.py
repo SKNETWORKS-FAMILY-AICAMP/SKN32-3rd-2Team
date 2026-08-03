@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -19,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.errors import LLMServiceError
+from app.providers import registry
 from app.routers import chat, meta
 from app.services import rag_client
 
@@ -34,9 +36,23 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 
+logger = logging.getLogger("llm.startup")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 프로바이더 생성(SDK import + HTTP 클라이언트 구성)은 실측 1.5~2.4초다.
+    # 여기서 미리 만들어 두지 않으면 서버 기동 후 첫 사용자가 그 시간을 대신 문다.
+    started = time.perf_counter()
+    ready = registry.warm_up()
+    rag_client.get_client()  # httpx 커넥션 풀도 같이 준비
+    await registry.preconnect_all()  # 벤더 API TLS 연결까지 미리 열어둔다
+    logger.info(
+        "기동 준비 완료 %.0fms · 프로바이더 %s",
+        (time.perf_counter() - started) * 1000,
+        {k: ("ok" if v else "skip") for k, v in ready.items()},
+    )
+
     yield
     await rag_client.close_client()
 
