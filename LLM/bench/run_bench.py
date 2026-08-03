@@ -3,9 +3,9 @@
 `questions.yaml` 34문항을 실제 서비스 경로(`generate_answer`)로 돌려 결과를
 JSONL 로 남긴다. 집계와 보고서 작성은 `report.py` 가 맡는다.
 
-    python bench/run_bench.py --provider openai --tag baseline
-    python bench/run_bench.py --provider qwen   --tag baseline
-    python bench/run_bench.py --provider gemini --tag baseline --rpm 8
+    python bench/run_bench.py --provider openai                    # baseline
+    python bench/run_bench.py --provider openai --variant catdef   # 프롬프트 변형
+    python bench/run_bench.py --provider gemini --rpm 8            # 무료 티어 한도
 
 검색은 실제 RAG 가 아니라 `corpus.py` 를 쓴다
 -------------------------------------------
@@ -133,12 +133,16 @@ async def _run_one(question: dict, provider: str, top_k: int) -> dict:
 async def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--provider", required=True, choices=["openai", "gemini", "qwen"])
-    ap.add_argument("--tag", default="baseline", help="조건 이름. 보고서에서 이걸로 구분한다")
+    ap.add_argument("--tag", default="", help="조건 이름. 비우면 --variant 값을 쓴다")
+    ap.add_argument(
+        "--variant", default="baseline", help="프롬프트 변형. variants.py 참고"
+    )
     ap.add_argument("--top-k", type=int, default=5)
     ap.add_argument("--rpm", type=int, default=0, help="분당 요청 상한. 0이면 제한 없음")
     ap.add_argument("--limit", type=int, default=0, help="앞에서 N개만 (빠른 확인용)")
     ap.add_argument("--timeout", type=float, default=60.0, help="측정용 타임아웃(초)")
     args = ap.parse_args()
+    tag = args.tag or args.variant
 
     # 설정은 lru_cache 라 첫 참조 전에 넣어야 한다.
     # 운영 기본값 5초를 그대로 쓰면 느린 프로바이더가 전부 타임아웃으로 기록돼
@@ -153,6 +157,13 @@ async def main() -> int:
 
     get_settings.cache_clear()
     _install_corpus_retrieval(args.top_k)
+
+    # 프롬프트 변형은 서비스 모듈이 임포트된 **뒤**에 적용해야 한다.
+    # (소비처의 모듈 속성을 갈아끼우는 방식이라 대상이 먼저 있어야 한다)
+    import variants
+
+    variants.check_categories()
+    applied = variants.apply(args.variant)
 
     # 같은 질문을 다시 돌릴 때 캐시가 응답하면 지연이 0으로 찍혀 분포가 망가진다.
     topic_service.clear_cache()
@@ -173,9 +184,11 @@ async def main() -> int:
 
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = RESULTS_DIR / f"{run_id}_{args.tag}_{args.provider}.jsonl"
+    out_path = RESULTS_DIR / f"{run_id}_{tag}_{args.provider}.jsonl"
 
-    print(f"조건 {args.tag} · {args.provider}/{provider.model} · {len(questions)}문항")
+    print(f"조건 {tag} · {args.provider}/{provider.model} · {len(questions)}문항")
+    if applied:
+        print(f"프롬프트 변형 {args.variant}: {', '.join(applied)} 교체")
     print(f"결과 → {out_path}\n")
 
     started_all = time.perf_counter()
@@ -191,7 +204,8 @@ async def main() -> int:
                 {
                     "ts": datetime.now().astimezone().isoformat(),
                     "run_id": run_id,
-                    "tag": args.tag,
+                    "tag": tag,
+                    "variant": args.variant,
                     "provider": args.provider,
                     "model": provider.model,
                     "top_k": args.top_k,
