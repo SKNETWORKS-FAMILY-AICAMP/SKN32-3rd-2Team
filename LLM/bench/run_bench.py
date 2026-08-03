@@ -181,6 +181,9 @@ async def _run_one(question: dict, provider: str, top_k: int) -> dict:
         "cited_articles": cited,
         # 근거 문서에 없는 조문을 든 것. 내용이 맞아도 신뢰를 깎는다.
         "bad_citations": bad,
+        # 프롬프트에 실제로 들어간 근거 본문. judge.py 가 답변과 대조한다.
+        # 파일이 커지지만 results/ 는 .gitignore 대상이라 상관없다.
+        "context": _last_context.get(),
         "rag_degraded": bool(res.rag_degraded) if res else None,
         "latency_ms": latency_ms,
         "error_code": error_code,
