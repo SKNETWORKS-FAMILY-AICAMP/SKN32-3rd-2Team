@@ -11,19 +11,16 @@ import uuid
 from typing import List, Optional
 import pydantic
 from config import Config
-
-
-# from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.embeddings import HuggingFaceEmbeddings
-embedding_model = HuggingFaceEmbeddings(
-    model_name="jhgan/ko-sroberta-multitask"
+from rag_pipeline import (
+    build_vector_store_from_file,
+    get_embedding_model,
+    get_reranker_model,
+    search_across_vector_stores,
 )
 
 
-from sentence_transformers import CrossEncoder
-reranker_model = CrossEncoder(
-    "BAAI/bge-reranker-v2-m3"
-)
+embedding_model = get_embedding_model()
+reranker_model = get_reranker_model()
 
 
 app = FastAPI(title=Config.API_TITLE)
@@ -228,14 +225,13 @@ async def get_document(doc_id: int):
 @app.post("/api/documents/upload")
 async def upload_document(file: UploadFile = File(...)):
     """PDF 문서 업로드"""
-    # PDF 파일만 허용
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
-    
-    # 중복 파일 체크
+
+    file_path = None
     connection = get_db_connection()
     cursor = connection.cursor(dictionary=True)
-    
+
     try:
         # 동일한 이름의 파일이 존재하는지 확인
         check_query = "SELECT doc_id FROM document WHERE original_file_name = %s AND is_deleted = FALSE"
@@ -256,11 +252,11 @@ async def upload_document(file: UploadFile = File(...)):
             stored_filename = f"doc_{timestamp}_{unique_id}_{file.filename}"
         
         file_path = os.path.join(UPLOAD_DIR, file.filename)
-        
+
         # 파일 저장
         with open(file_path, 'wb') as buffer:
             shutil.copyfileobj(file.file, buffer)
-        
+
         # 데이터베이스에 문서 정보 저장
         insert_query = """
             INSERT INTO document (original_file_name, stored_file_name, file_path, is_loaded, loaded_at)
@@ -276,44 +272,14 @@ async def upload_document(file: UploadFile = File(...)):
         # ==========================
         # 자동 Vector DB 적재
         # ==========================
-
-        from langchain_community.document_loaders import PyPDFLoader
-        from langchain_text_splitters import RecursiveCharacterTextSplitter
-        # from langchain_openai import OpenAIEmbeddings
-        from langchain_community.vectorstores import FAISS
-
-        loader = PyPDFLoader(file_path)
-        pages = loader.load()
-
-        # CHUNKING 방식변경시도: 260731 법령 문서는 일반 문서와 다르게: 제1조, 2조, 3조 구조가 중요해 문장을 기준으로 자르면 조문 경계가 깨질 가능성이 높음
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
-            separators=[
-                "\n제",
-                "\n\n",
-                "\n",
-                " "
-            ]
+        vector_path = os.path.join(Config.BASE_DIR, "vector_store", str(doc_id))
+        chunk_count = build_vector_store_from_file(
+            file_path,
+            vector_path,
+            doc_id=doc_id,
+            chunk_size=Config.CHUNK_SIZE,
+            chunk_overlap=Config.CHUNK_OVERLAP,
         )
-
-        chunks = splitter.split_documents(pages)
-
-        # embeddings = OpenAIEmbeddings(
-        #     model="text-embedding-3-small"
-        # )
-        from langchain_community.embeddings import HuggingFaceEmbeddings
-
-        embeddings = HuggingFaceEmbeddings(
-            model_name="jhgan/ko-sroberta-multitask"
-        )
-
-        vector_db = FAISS.from_documents(chunks, embeddings)
-
-        vector_path = f"vector_store/{doc_id}"
-        os.makedirs(vector_path, exist_ok=True)
-
-        vector_db.save_local(vector_path)
 
         cursor.execute("""
         UPDATE document
@@ -332,14 +298,16 @@ async def upload_document(file: UploadFile = File(...)):
             "doc_id": doc_id,
             "original_file_name": file.filename,
             "stored_file_name": stored_filename,
-            "file_path": file_path
+            "file_path": file_path,
+            "chunk_count": chunk_count,
         }
     except Exception as e:
         connection.rollback()
         print(f"Error uploading document: {e}")
+        import traceback
         traceback.print_exc()
         # 파일 저장 실패 시 저장된 파일 삭제
-        if os.path.exists(file_path):
+        if file_path and os.path.exists(file_path):
             os.remove(file_path)
         raise HTTPException(status_code=500, detail="Failed to upload document")
     finally:
@@ -444,56 +412,19 @@ async def load_document_to_vector(doc_id: int):
         # ==========================
         # PDF -> Chunk -> Vector DB
         # ==========================
-
-        from langchain_community.document_loaders import PyPDFLoader
-
         file_path = document["file_path"]
 
         if not os.path.isabs(file_path):
             file_path = os.path.join(Config.BASE_DIR, file_path)
-        # print("Vector loading file:", file_path)
 
-        loader = PyPDFLoader(file_path)
-
-        pages = loader.load()
-
-
-        from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200
+        vector_path = os.path.join(Config.BASE_DIR, "vector_store", str(doc_id))
+        chunk_count = build_vector_store_from_file(
+            file_path,
+            vector_path,
+            doc_id=doc_id,
+            chunk_size=Config.CHUNK_SIZE,
+            chunk_overlap=Config.CHUNK_OVERLAP,
         )
-
-        chunks = splitter.split_documents(pages)
-
-
-        # from langchain_openai import OpenAIEmbeddings
-
-        # embeddings = OpenAIEmbeddings(
-        #     model="text-embedding-3-small"
-        # )
-
-        from langchain_community.embeddings import HuggingFaceEmbeddings
-
-        embeddings = HuggingFaceEmbeddings(
-            model_name="jhgan/ko-sroberta-multitask"
-        )
-
-
-        from langchain_community.vectorstores import FAISS
-
-        vector_db = FAISS.from_documents(
-            chunks,
-            embeddings
-        )
-
-
-        vector_path = f"vector_store/{doc_id}"
-
-        os.makedirs(vector_path, exist_ok=True)
-
-        vector_db.save_local(vector_path)
 
 
         # ==========================
@@ -518,7 +449,7 @@ async def load_document_to_vector(doc_id: int):
         return {
             "message": "Vector DB loading completed",
             "doc_id": doc_id,
-            "chunk_count": len(chunks)
+            "chunk_count": chunk_count,
         }
 
 
@@ -553,205 +484,41 @@ class SearchRequest(BaseModel):
     # doc_id: int
 
 
-def find_best_document(query: str):
-
-    from langchain_community.vectorstores import FAISS
-
-
-    vector_root = os.path.join(
-        Config.BASE_DIR,
-        "vector_store"
-    )
-
-
-    candidates = []
-
-
-    for doc_id in os.listdir(vector_root):
-
-        doc_path = os.path.join(
-            vector_root,
-            doc_id
-        )
-
-
-        if not os.path.isdir(doc_path):
-            continue
-
-
-        vector_db = FAISS.load_local(
-            doc_path,
-            embedding_model,
-            allow_dangerous_deserialization=True
-        )
-
-
-        docs = vector_db.similarity_search_with_score(
-            query,
-            k=3
-        )
-
-
-        for doc, score in docs:
-
-            candidates.append({
-                "doc_id": doc_id,
-                "content": doc.page_content,
-                "score": score
-            })
-
-
-    if not candidates:
-        return None
-
-
-    # 상위 후보만 reranker
-    candidates = sorted(
-        candidates,
-        key=lambda x:x["score"]
-    )[:20]
-
-
-    pairs = [
-        (
-            query,
-            c["content"]
-        )
-        for c in candidates
-    ]
-
-
-    rerank_scores = reranker_model.predict(
-        pairs
-    )
-
-
-    ranked = sorted(
-        zip(candidates, rerank_scores),
-        key=lambda x:x[1],
-        reverse=True
-    )
-
-
-    return int(
-        ranked[0][0]["doc_id"]
-    )
-
 @app.post("/api/search")
 async def search_vector(request: SearchRequest):
 
     try:
+        query = " ".join((request.query or "").split())
+        if not query:
+            raise HTTPException(status_code=400, detail="Query is required")
 
-        from langchain_community.vectorstores import FAISS
+        vector_root = os.path.join(Config.BASE_DIR, "vector_store")
+        if not os.path.exists(vector_root):
+            raise HTTPException(status_code=404, detail="No vector store found")
 
-
-        # 해당 문서 vector store 경로
-        # vector_path = os.path.join(
-        #     Config.BASE_DIR,
-        #     "vector_store",
-        #     str(request.doc_id)
-        # )
-        doc_id = find_best_document(
-            request.query
-        )
-
-
-        if doc_id is None:
-            raise HTTPException(
-                status_code=404,
-                detail="No relevant document found"
-            )
-        vector_path = os.path.join(
-            Config.BASE_DIR,
-            "vector_store",
-            str(doc_id)
-        )
-
-        if not os.path.exists(vector_path):
-            raise HTTPException(
-                status_code=404,
-                detail="Vector store not found"
-            )
-
-
-        # FAISS 로드
-        vector_db = FAISS.load_local(
-            vector_path,
+        results = search_across_vector_stores(
+            query,
+            vector_root,
             embedding_model,
-            allow_dangerous_deserialization=True
+            reranker_model,
+            top_k=Config.SEARCH_TOP_K,
+            initial_candidates=Config.SEARCH_INITIAL_CANDIDATES,
         )
 
-
-        # ==========================
-        # 1차 검색 : FAISS Top 20
-        # ==========================
-
-        docs = vector_db.similarity_search(
-            request.query,
-            k=20
-        )
-
-
-        # ==========================
-        # 2차 검색 : Reranker
-        # ==========================
-
-        pairs = [
-            (
-                request.query,
-                doc.page_content
-            )
-            for doc in docs
-        ]
-
-
-        scores = reranker_model.predict(
-            pairs
-        )
-
-
-        reranked_docs = sorted(
-            zip(docs, scores),
-            key=lambda x: x[1],
-            reverse=True
-        )
-
-
-        # 최종 Top 5
-        final_docs = [
-            doc
-            for doc, score in reranked_docs[:5]
-        ]
-
-
-        # ==========================
-        # Response
-        # ==========================
-
-        results = []
-
-        for doc in final_docs:
-            results.append({
-                "content": doc.page_content,
-                "metadata": doc.metadata
-            })
-
+        if not results:
+            raise HTTPException(status_code=404, detail="No relevant document found")
 
         return {
-            "query": request.query,
-            "results": results
+            "query": query,
+            "results": results,
         }
 
-
+    except HTTPException:
+        raise
     except Exception as e:
-
         import traceback
         traceback.print_exc()
-
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 

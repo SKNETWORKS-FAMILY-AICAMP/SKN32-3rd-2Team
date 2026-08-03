@@ -30,3 +30,12 @@ class Config:
     VECTOR_DB_HOST = "localhost"
     VECTOR_DB_PORT = 6333  # Qdrant 기본 포트
     VECTOR_DB_COLLECTION = "rag_documents"
+
+    # RAG 품질 관리 설정
+    CHUNK_SIZE = 800
+    CHUNK_OVERLAP = 120
+    MIN_CHUNK_LENGTH = 80
+    EMBEDDING_MODEL = "jhgan/ko-sroberta-multitask"
+    RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
+    SEARCH_TOP_K = 5
+    SEARCH_INITIAL_CANDIDATES = 20
