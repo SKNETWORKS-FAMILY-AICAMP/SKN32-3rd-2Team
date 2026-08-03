@@ -10,6 +10,13 @@ const PDF_ICON_PATH = '/res/img/icon_pdf.png';
 const VIEW_MODE_STORAGE_KEY = 'rag_explorer_view_mode';
 const ACCORDION_STATE_STORAGE_KEY = 'rag_explorer_accordion_state';
 
+// PDF 뷰어 상태
+let pdfDoc = null;
+let currentPage = 1;
+let totalPages = 0;
+let currentScale = 1.0;
+let isPdfViewerActive = false;
+
 // 초기화
 document.addEventListener('DOMContentLoaded', function() {
     restoreViewMode();
@@ -22,6 +29,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setupDragAndDrop();
     setupFileInput();
     setupResizer();
+    setupPdfViewer();
 });
 
 function restoreViewMode() {
@@ -321,7 +329,9 @@ async function loadFiles() {
                 .filter(doc => isCommonFile(doc.stored_file_name) || isDocFile(doc.stored_file_name))
                 .map(doc => ({
                     id: doc.doc_id,
+                    docId: doc.doc_id,
                     name: doc.original_file_name,
+                    originalFileName: doc.original_file_name,
                     storedFileName: doc.stored_file_name,
                     size: doc.file_size || 0,
                     modified: doc.created_at,
@@ -523,13 +533,16 @@ function selectFile(fileId) {
     });
 
     if (selectedFileId === null) {
+        if (isPdfViewerActive) {
+            closePdfViewer();
+        }
         document.getElementById('panelTitle').textContent = '문서 목록';
         return;
     }
 
     const file = files.find(f => f.id === selectedFileId);
     if (file) {
-        document.getElementById('panelTitle').textContent = file.name;
+        openPdfViewer(file.docId);
     }
 }
 
@@ -772,5 +785,176 @@ function setupResizer() {
         resizer.classList.remove('resizing');
         document.removeEventListener('mousemove', resize);
         document.removeEventListener('mouseup', stopResize);
+    }
+}
+
+// PDF 뷰어 설정
+function setupPdfViewer() {
+    const backToListBtn = document.getElementById('backToListBtn');
+    const prevPageBtn = document.getElementById('prevPageBtn');
+    const nextPageBtn = document.getElementById('nextPageBtn');
+    const zoomInBtn = document.getElementById('zoomInBtn');
+    const zoomOutBtn = document.getElementById('zoomOutBtn');
+
+    if (backToListBtn) {
+        backToListBtn.addEventListener('click', closePdfViewer);
+    }
+
+    if (prevPageBtn) {
+        prevPageBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPage(currentPage);
+            }
+        });
+    }
+
+    if (nextPageBtn) {
+        nextPageBtn.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPage(currentPage);
+            }
+        });
+    }
+
+    if (zoomInBtn) {
+        zoomInBtn.addEventListener('click', () => {
+            if (currentScale < 3.0) {
+                currentScale += 0.25;
+                renderPage(currentPage);
+            }
+        });
+    }
+
+    if (zoomOutBtn) {
+        zoomOutBtn.addEventListener('click', () => {
+            if (currentScale > 0.5) {
+                currentScale -= 0.25;
+                renderPage(currentPage);
+            }
+        });
+    }
+}
+
+// PDF 뷰어 열기
+async function openPdfViewer(docId) {
+    const file = files.find(f => f.docId === docId);
+    if (!file) return;
+
+    const panelContent = document.getElementById('panelContent');
+    const pdfViewerContainer = document.getElementById('pdfViewerContainer');
+    const backToListBtn = document.getElementById('backToListBtn');
+    const loadAllBtn = document.getElementById('loadAllBtn');
+    const panelTitle = document.getElementById('panelTitle');
+    const panelSubtitle = document.getElementById('panelSubtitle');
+
+    if (panelContent) panelContent.style.display = 'none';
+    if (pdfViewerContainer) pdfViewerContainer.style.display = 'flex';
+    if (backToListBtn) backToListBtn.style.display = 'inline-block';
+    if (loadAllBtn) loadAllBtn.style.display = 'none';
+    if (panelTitle) panelTitle.textContent = file.originalFileName;
+    if (panelSubtitle) panelSubtitle.style.display = 'none';
+
+    isPdfViewerActive = true;
+
+    try {
+        // PDF 파일을 Blob으로 가져오기
+        const response = await fetch(`${API_BASE_URL}/documents/${docId}/file`);
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `PDF 파일을 불러오는데 실패했습니다. (Status: ${response.status})`);
+        }
+
+        const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+
+        // PDF 문서 로드
+        pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        totalPages = pdfDoc.numPages;
+        currentPage = 1;
+        currentScale = 1.0;
+
+        updatePdfViewerInfo();
+        renderPage(currentPage);
+
+    } catch (error) {
+        console.error('PDF 로드 오류:', error);
+        alert('PDF를 불러오는데 실패했습니다: ' + error.message);
+        closePdfViewer();
+    }
+}
+
+// PDF 뷰어 닫기
+function closePdfViewer() {
+    const panelContent = document.getElementById('panelContent');
+    const pdfViewerContainer = document.getElementById('pdfViewerContainer');
+    const backToListBtn = document.getElementById('backToListBtn');
+    const loadAllBtn = document.getElementById('loadAllBtn');
+    const panelTitle = document.getElementById('panelTitle');
+    const panelSubtitle = document.getElementById('panelSubtitle');
+
+    if (panelContent) panelContent.style.display = 'block';
+    if (pdfViewerContainer) pdfViewerContainer.style.display = 'none';
+    if (backToListBtn) backToListBtn.style.display = 'none';
+    if (loadAllBtn) loadAllBtn.style.display = 'inline-block';
+    if (panelTitle) panelTitle.textContent = '문서 목록';
+    if (panelSubtitle) {
+        panelSubtitle.style.display = 'inline';
+        panelSubtitle.textContent = `총 ${files.length}개 문서`;
+    }
+
+    isPdfViewerActive = false;
+    pdfDoc = null;
+    currentPage = 1;
+    totalPages = 0;
+    currentScale = 1.0;
+
+    // 캔버스 초기화
+    const canvas = document.getElementById('pdfCanvas');
+    if (canvas) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+}
+
+// PDF 페이지 렌더링
+async function renderPage(pageNum) {
+    if (!pdfDoc) return;
+
+    const canvas = document.getElementById('pdfCanvas');
+    const ctx = canvas.getContext('2d');
+
+    try {
+        const page = await pdfDoc.getPage(pageNum);
+        const viewport = page.getViewport({ scale: currentScale });
+
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        const renderContext = {
+            canvasContext: ctx,
+            viewport: viewport
+        };
+
+        await page.render(renderContext).promise;
+        updatePdfViewerInfo();
+
+    } catch (error) {
+        console.error('페이지 렌더링 오류:', error);
+    }
+}
+
+// PDF 뷰어 정보 업데이트
+function updatePdfViewerInfo() {
+    const pageInfo = document.getElementById('pageInfo');
+    const zoomInfo = document.getElementById('zoomInfo');
+
+    if (pageInfo) {
+        pageInfo.textContent = `${currentPage} / ${totalPages}`;
+    }
+
+    if (zoomInfo) {
+        zoomInfo.textContent = `${Math.round(currentScale * 100)}%`;
     }
 }

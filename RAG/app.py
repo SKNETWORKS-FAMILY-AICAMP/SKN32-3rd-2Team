@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 import mysql.connector
 from mysql.connector import Error
@@ -493,6 +493,43 @@ async def load_all_documents(mode: str = "skip"):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        connection.close()
+
+@app.get("/api/documents/{doc_id}/file")
+async def get_document_file(doc_id: int):
+    """문서 파일 반환 (PDF 뷰어용)"""
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+    
+    try:
+        query = """
+            SELECT file_path, stored_file_name, original_file_name
+            FROM document
+            WHERE doc_id = %s AND is_deleted = FALSE
+        """
+        cursor.execute(query, (doc_id,))
+        document = cursor.fetchone()
+        
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        file_path = document['file_path']
+        if not os.path.isabs(file_path):
+            file_path = os.path.join(Config.BASE_DIR, file_path)
+        
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        return FileResponse(
+            file_path,
+            media_type='application/pdf',
+            filename=document['original_file_name']
+        )
+    except Error as e:
+        print(f"Error fetching document file: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch document file")
     finally:
         cursor.close()
         connection.close()
