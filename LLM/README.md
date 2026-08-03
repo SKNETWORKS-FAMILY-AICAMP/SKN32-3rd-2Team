@@ -191,7 +191,14 @@ app/
 
 ## 남은 작업
 
-- [ ] `live` 모드 실제 호출 검증 (OpenAI / Gemini 키 필요)
-- [ ] RAG 서비스 실연동 (Member C 와 `/v1/search` 계약 확정)
-- [ ] 카테고리 8종 팀 확정 (Member B)
-- [ ] `bench/` 벤치마크 + `docs/PERFORMANCE_REPORT.md`
+- [x] `live` 모드 실제 호출 검증 — OpenAI / Gemini / Qwen 3종
+- [x] RAG 서비스 실연동 — 경로가 `/api/search` 로 확정, 응답 스키마 매핑 완료
+- [x] 카테고리 8종 팀 확정
+- [x] `bench/` 벤치마크 + [docs/PERFORMANCE_REPORT.md](docs/PERFORMANCE_REPORT.md)
+
+남은 것:
+
+- [ ] Qwen 파인튜닝 모델 비교 (RunPod 학습 진행 중)
+- [ ] 스트리밍(`/v1/chat/stream`) TTFT 측정 — 비스트리밍이 기본 경로라 후순위
+- [ ] 다른 파트에 전달한 사항 반영 확인 — [docs/RAG_FEEDBACK.md](docs/RAG_FEEDBACK.md) 6건,
+      WEB 의 `admin_stats.js` 카테고리 색상표 8종 갱신
