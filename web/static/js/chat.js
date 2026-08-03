@@ -38,6 +38,7 @@ document.addEventListener("DOMContentLoaded", function () {
         chatroomId = room.chatroom_id;
         page.dataset.chatroomId = chatroomId;
         window.history.replaceState(null, "", `/chat/${chatroomId}`);
+        activateChatroom(chatroomId);
       }
 
       const typingEl = appendMessage("llm", "…", true);
@@ -70,6 +71,15 @@ document.addEventListener("DOMContentLoaded", function () {
     return res.json();
   }
 
+  function activateChatroom(id) {
+    document.querySelectorAll(".app-sidebar .nav-item.active").forEach(el => el.classList.remove("active"));
+
+    const list = document.getElementById("chatroom-list");
+    if (list) list.dataset.activeId = id;
+
+    if (window.loadChatroomList) window.loadChatroomList();
+  }
+
   async function loadMessages(id) {
     const res = await fetch(`/chat/api/rooms/${id}/messages`);
     if (!res.ok) return;
@@ -89,7 +99,7 @@ document.addEventListener("DOMContentLoaded", function () {
     el.className = `chat-message ${speaker}` + (isTyping ? " typing" : "");
     el.textContent = text;
 
-    if (speaker === "llm" && sources && sources.length) {
+    if (speaker === "llm" && sources && sources.length && ragDegraded==false) {
       el.classList.add("has-sources");
       el.title = "근거 문서\n" + sources.map(formatSource).join("\n");
     } else if (speaker === "llm" && ragDegraded) {

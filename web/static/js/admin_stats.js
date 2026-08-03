@@ -7,6 +7,7 @@ const CATEGORY_COLORS = {
   "복리후생": "#008300",
   "복무/징계": "#4a3aa7",
   "기타": "#898781",
+  "에러": "#c0392b",
 };
 
 document.addEventListener("DOMContentLoaded", async function () {
