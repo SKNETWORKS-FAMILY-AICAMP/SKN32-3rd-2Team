@@ -1,7 +1,7 @@
 # RAG 서비스에 요청드리는 API 명세
 
-> **받는 사람: Member C (RAG 담당, port 8002)**
-> 보내는 사람: Member D (LLM 담당, port 8001)
+> **받는 사람: Member C (RAG 담당, port 8001)**
+> 보내는 사람: Member D (LLM 담당, port 8002)
 
 LLM 서비스가 답변을 만들려면 관련 문서를 검색해야 합니다.
 시퀀스다이어그램(PPT 17p)의 `LLM 서비스 → 문서 저장소(RAG): 관련 문서 검색 / 문서 반환` 구간입니다.
@@ -16,7 +16,7 @@ LLM 서비스가 답변을 만들려면 관련 문서를 검색해야 합니다.
 ### 요청 (제가 보냅니다)
 
 ```
-POST http://localhost:8002/v1/search
+POST http://localhost:8001/v1/search
 Content-Type: application/json
 ```
 
@@ -66,7 +66,7 @@ Content-Type: application/json
 
 ## 헬스체크: `GET /health`
 
-`GET http://localhost:8002/health` 로 상태를 확인합니다.
+`GET http://localhost:8001/health` 로 상태를 확인합니다.
 **200~499 아무 응답이나 주시면 "살아있음"으로 봅니다.** 별도 body 형식은 필요 없습니다.
 없어도 서비스는 동작하지만, 제 `/health` 가 RAG 상태를 `down` 으로 표시하게 됩니다.
 
@@ -77,7 +77,7 @@ Content-Type: application/json
 - **타임아웃 3초.** 이 안에 응답이 없으면 검색을 포기합니다.
 - **RAG가 죽어도 챗봇은 안 죽습니다.** 검색 실패 시 제 서비스는 500을 던지지 않고,
   문서 없이 답변을 만들어 `rag_degraded: true` 로 내려보냅니다.
-  → **개발 중에 8002를 마음대로 껐다 켜셔도 됩니다.**
+  → **개발 중에 8001을 마음대로 껐다 켜셔도 됩니다.**
 - **진도에 구애받지 마세요.** 저는 `RAG_MODE=mock` 으로 고정 응답을 쓰며 개발 중입니다.
   준비되시면 `RAG_MODE=live` 로 한 줄 바꿔 붙입니다.
 
@@ -85,7 +85,7 @@ Content-Type: application/json
 
 ## 확인 부탁드릴 것 4가지
 
-1. **포트 8002 가 맞나요?** (PPT 19p 기준 LLM/RAG 가 8001·8002)
+1. **포트 8001 이 맞나요?** (협의 결과: RAG 8001, LLM 8002)
 2. **경로가 `/v1/search` 가 맞나요?** 다르면 알려주세요.
 3. **응답 필드명**이 위와 다른가요?
 4. **청킹할 때 파일명·페이지를 메타데이터로 같이 저장하셨나요?**
@@ -110,7 +110,7 @@ Content-Type: application/json
 붙이기 전에 아래로 먼저 확인하면 편합니다.
 
 ```bash
-curl -X POST http://localhost:8002/v1/search \
+curl -X POST http://localhost:8001/v1/search \
   -H "Content-Type: application/json" \
   -d '{"query":"연차 며칠까지 쓸 수 있나요?","top_k":5}'
 ```

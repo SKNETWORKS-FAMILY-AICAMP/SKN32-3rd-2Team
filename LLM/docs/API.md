@@ -6,8 +6,8 @@
 > 이 문서는 **LLM 서비스가 제공하는** API입니다.
 > 제가 RAG 담당자에게 **요청드리는** 명세는 → [RAG_REQUIRED_API.md](RAG_REQUIRED_API.md)
 
-- **Base URL**: `http://localhost:8001`
-- **Swagger (자동 생성, 항상 최신)**: `http://localhost:8001/docs`
+- **Base URL**: `http://localhost:8002`
+- **Swagger (자동 생성, 항상 최신)**: `http://localhost:8002/docs`
 - 모든 요청/응답 `Content-Type: application/json`, 인코딩 UTF-8
 
 ## 목차
@@ -43,7 +43,7 @@
 ## 0. 이 서비스의 위치
 
 ```
-웹 프론트엔드 → 챗봇 서버(8000) → [LLM 서비스(8001)] → RAG 서비스(8002)
+웹 프론트엔드 → 챗봇 서버(8000) → [LLM 서비스(8002)] → RAG 서비스(8001)
                       ↓
                      MySQL
 ```
@@ -366,8 +366,8 @@ cd LLM
 python -m venv .venv && .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env      # API 키 채우기
-uvicorn app.main:app --reload --port 8001
+uvicorn app.main:app --reload --port 8002
 ```
 
-`http://localhost:8001/docs` 에서 바로 눌러볼 수 있습니다.
+`http://localhost:8002/docs` 에서 바로 눌러볼 수 있습니다.
 API 키가 아직 없으면 `.env` 에 `LLM_MODE=mock` 을 넣으면 고정 응답으로 화면을 붙여볼 수 있습니다. **응답 형식은 실제와 동일합니다.**
