@@ -32,6 +32,77 @@ from app.services.topic import classify
 
 logger = logging.getLogger(__name__)
 
+# 근거에 없는 조문 인용을 답변에서 걷어낸다.
+#
+# 왜 필요한가
+# -----------
+# RAG 청크가 조문 중간부터 시작해 `제N조` 머리가 컨텍스트에 없는 경우가 잦다.
+# 그러면 모델이 조 번호를 기억으로 붙인다. 실측(같은 질문 8회)에서 이렇게 나왔다.
+#
+#   "(근로기준법 제2항)"    조 번호 없이 항만 — 법령에서 특정 불가
+#   "(근로기준법 제57조)"   제57조는 보상 휴가제로, 휴일근로수당과 무관
+#
+# 두 번째가 특히 위험하다. 형식이 멀쩡해서 직원이 그대로 믿고 엉뚱한 조문을
+# 찾아간다. 규정 안내 서비스에서 잘못된 출처는 없는 것만 못하다.
+#
+# 프롬프트로 "근거에 보이는 조문만 인용하라" 고 지시했지만 확률적으로 샌다.
+# **검증은 코드로 하는 편이 확실하다** — 검색된 청크 본문에 그 조 번호가
+# 있는지 그냥 대조하면 된다.
+#
+# 인용을 통째로 없애지 않는 이유: 맞는 인용은 가치가 크다. "근로기준법에
+# 따르면" 과 "근로기준법 제60조에 따르면" 은 직원이 원문을 찾아볼 수 있느냐가
+# 다르다. 그래서 **지어낸 것만** 지운다.
+_ARTICLE_NUMBER = re.compile(r"제\s?\d+조(?:의\s?\d+)?")
+# 지울 때는 **앞 공백까지 함께** 먹는다. "근로기준법 제57조에" → "근로기준법에".
+# 공백 정리를 문서 전체에 돌리면 "1년 이상" 이 "1년이상" 이 되는 식으로 멀쩡한
+# 곳을 망친다. 지운 자리에서만 처리해야 안전하다.
+_ARTICLE_WITH_SPACE = re.compile(r"\s?(제\s?\d+조(?:의\s?\d+)?)")
+_BARE_CLAUSE_WITH_SPACE = re.compile(r"\s?(제\s?\d+[항호])")
+# 인용만 담긴 괄호. 안을 지우면 빈 껍데기가 남으므로 함께 정리한다.
+_EMPTY_PAREN = re.compile(r"[(（]\s*[)）]")
+
+
+def _normalize(text: str) -> str:
+    return re.sub(r"\s+", "", text)
+
+
+def strip_unverifiable_citations(text: str, context: str, *, allow: bool = True) -> str:
+    """근거에서 확인되지 않는 조문 번호를 답변에서 지운다.
+
+    문장을 통째로 지우지 않고 **번호만** 뺀다. "근로기준법 제57조에 따르면" 은
+    "근로기준법에 따르면" 이 되어 문장이 그대로 살아 있고 뜻도 안 바뀐다.
+
+    `allow=False` 면 근거에 있든 없든 조문 번호를 전부 뺀다. 지금 RAG 구성에서
+    쓰는 값이다 — 이유는 `Settings.answer_cite_articles` 주석 참조.
+    """
+    if not text:
+        return text
+
+    flat_context = _normalize(context)
+
+    def _drop_if_unverifiable(match: re.Match) -> str:
+        # group(1) 이 조문 번호, group(0) 은 앞 공백까지 포함한다.
+        if not allow:
+            return ""
+        return match.group(0) if _normalize(match.group(1)) in flat_context else ""
+
+    cleaned = _ARTICLE_WITH_SPACE.sub(_drop_if_unverifiable, text)
+
+    # 조 번호가 하나도 안 남았는데 항·호만 떠 있으면 그것도 지운다.
+    # 조문 없이 "제2항" 만으로는 법령에서 찾을 수 없다.
+    if not _ARTICLE_NUMBER.search(cleaned):
+        cleaned = _BARE_CLAUSE_WITH_SPACE.sub("", cleaned)
+
+    if cleaned == text:
+        return text
+
+    # 인용만 들어 있던 괄호가 빈 껍데기로 남으면 지운다.
+    cleaned = re.sub(r"\s+([)）])", r"\1", cleaned)
+    cleaned = _EMPTY_PAREN.sub("", cleaned)
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    return cleaned.strip() or text
+
+
 # 임베딩 모델 입력 길이를 고려한 검색어 상한.
 SEARCH_QUERY_MAX_CHARS = 500
 
@@ -169,7 +240,11 @@ async def generate_answer(req: ChatRequest) -> ChatResponse:
     )
 
     return ChatResponse(
-        answer=answer_result.text,
+        answer=strip_unverifiable_citations(
+            answer_result.text,
+            "\n".join(c.content for c in chunks),
+            allow=settings.answer_cite_articles,
+        ),
         topic=topic[:TOPIC_MAX_LEN],
         sources=[c.to_source() for c in chunks],
         rag_degraded=degraded,
