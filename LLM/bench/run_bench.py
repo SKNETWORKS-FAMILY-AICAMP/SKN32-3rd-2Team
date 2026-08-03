@@ -142,6 +142,12 @@ async def main() -> int:
         default="",
         help="모델 이름을 덮어쓴다. 비우면 .env 값. 기록된 JSONL 의 model 필드로 남는다",
     )
+    ap.add_argument(
+        "--retrieval",
+        default="corpus",
+        choices=["corpus", "rag"],
+        help="corpus=정답 문서 안에서만 검색(LLM 상한선) · rag=실제 RAG 서비스(end-to-end)",
+    )
     ap.add_argument("--top-k", type=int, default=5)
     ap.add_argument("--rpm", type=int, default=0, help="분당 요청 상한. 0이면 제한 없음")
     ap.add_argument("--limit", type=int, default=0, help="앞에서 N개만 (빠른 확인용)")
@@ -164,7 +170,16 @@ async def main() -> int:
     from app.services import topic as topic_service
 
     get_settings.cache_clear()
-    _install_corpus_retrieval(args.top_k)
+    if args.retrieval == "corpus":
+        _install_corpus_retrieval(args.top_k)
+    else:
+        # 실제 RAG 를 쓴다. 서비스 코드를 그대로 통과하므로 아무것도 갈아끼우지 않는다.
+        # 타임아웃은 운영값(3초)보다 넉넉히 준다 — 느려서 degraded 로 빠지면
+        # '검색이 실패했다' 와 '검색이 느리다' 가 구분되지 않는다.
+        os.environ["RAG_MODE"] = "live"
+        os.environ.setdefault("RAG_TIMEOUT_SEC", "30")
+        os.environ["RAG_TOP_K"] = str(args.top_k)
+        get_settings.cache_clear()
 
     # 프롬프트 변형은 서비스 모듈이 임포트된 **뒤**에 적용해야 한다.
     # (소비처의 모듈 속성을 갈아끼우는 방식이라 대상이 먼저 있어야 한다)
@@ -217,6 +232,7 @@ async def main() -> int:
                     "provider": args.provider,
                     "model": provider.model,
                     "top_k": args.top_k,
+                    "retrieval": args.retrieval,
                 }
             )
             f.write(json.dumps(row, ensure_ascii=False) + "\n")

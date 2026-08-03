@@ -64,17 +64,37 @@ def _basename(path: str) -> str:
     return ntpath.basename(posixpath.basename(path or "")) or ""
 
 
+def _file_name_of(result: dict, metadata: dict) -> str:
+    """출처로 표시할 파일명을 뽑는다.
+
+    RAG 쪽 응답 필드가 여러 번 바뀌었으므로 알려진 이름을 모두 받는다.
+    지금(하이브리드 검색 도입 후)은 `metadata.source_file` 로 온다.
+    마지막 수단인 `metadata.source` 는 **그 사람 PC 의 절대경로**라
+        C:\\Dev_Tools\\rag_test\\rag_only\\RAG\\res/pdf/복무규정.pdf
+    그대로 뿌리면 로컬 경로가 사용자에게 노출되므로 파일명만 남긴다.
+    """
+    return str(
+        result.get("original_file_name")
+        or result.get("file_name")
+        or metadata.get("source_file")
+        or metadata.get("original_file_name")
+        or _basename(metadata.get("source", ""))
+        or ""
+    )
+
+
 def _page_of(result: dict, metadata: dict) -> int | None:
     """사람이 읽는 페이지 번호(1부터)를 뽑는다.
 
-    RAG 의 `metadata.page` 는 0부터라 그대로 쓰면 화면에 'p.0' 이 뜬다.
-    같은 값의 1-based 표기인 `page_label` 이 있으면 그쪽을 우선한다.
+    RAG 가 어느 표기를 주는지가 버전마다 달라서 1-based 인 것부터 확인한다.
+    `metadata.page` 는 0-based 라 그대로 쓰면 화면에 'p.0' 이 뜬다.
     """
     if result.get("page") is not None:
         return result["page"]
-    label = metadata.get("page_label")
-    if label is not None and str(label).isdigit():
-        return int(label)
+    for key in ("page_number", "page_label"):
+        value = metadata.get(key)
+        if value is not None and str(value).isdigit():
+            return int(value)
     page = metadata.get("page")
     return page + 1 if isinstance(page, int) else None
 
@@ -114,25 +134,29 @@ def _to_chunks(results: list[dict], top_k: int) -> list[RetrievedChunk]:
     seen: set[tuple[str, int | None]] = set()
     for r in results:
         metadata = r.get("metadata") or {}
-        name = (
-            r.get("original_file_name")
-            or r.get("file_name")
-            or _basename(metadata.get("source", ""))
-        )
+        name = _file_name_of(r, metadata)
         if not name:
             continue  # 문서명이 없으면 출처로 표시할 수 없다
         page = _page_of(r, metadata)
-        key = (str(name), page)
+        key = (name, page)
         if key in seen:
             continue
         seen.add(key)
+        # doc_id 는 문자열("10")로 오기도 한다. 스키마가 int 라 맞춰준다.
+        doc_id = r.get("doc_id") or metadata.get("doc_id")
+        if isinstance(doc_id, str):
+            doc_id = int(doc_id) if doc_id.isdigit() else None
+        # 리랭커 점수가 있으면 그쪽이 최종 관련도다(faiss/bm25 는 중간 점수).
+        score = r.get("rerank_score")
+        if score is None:
+            score = r.get("score") or metadata.get("score")
         chunks.append(
             RetrievedChunk(
-                original_file_name=str(name),
+                original_file_name=name,
                 content=str(r.get("content") or ""),
-                doc_id=r.get("doc_id") or metadata.get("doc_id"),
+                doc_id=doc_id,
                 page=page,
-                score=r.get("score") or metadata.get("score"),
+                score=score,
             )
         )
         if len(chunks) >= top_k:
