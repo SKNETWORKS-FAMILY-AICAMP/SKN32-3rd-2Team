@@ -768,6 +768,10 @@ function setupResizer() {
         startWidth = fileExplorer.offsetWidth;
         resizer.classList.add('resizing');
 
+        // 텍스트 선택 방지
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'col-resize';
+
         document.addEventListener('mousemove', resize);
         document.addEventListener('mouseup', stopResize);
     });
@@ -776,13 +780,15 @@ function setupResizer() {
         const dx = e.clientX - startX;
         const newWidth = startWidth + dx;
 
-        if (newWidth >= 250 && newWidth <= 600) {
+        if (newWidth >= 200 && newWidth <= 800) {
             fileExplorer.style.width = newWidth + 'px';
         }
     }
 
     function stopResize() {
         resizer.classList.remove('resizing');
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
         document.removeEventListener('mousemove', resize);
         document.removeEventListener('mouseup', stopResize);
     }

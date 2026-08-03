@@ -328,6 +328,7 @@ body.bulk-loading-active .status-badge {
     cursor: col-resize;
     transition: background-color 0.2s ease;
     flex-shrink: 0;
+    z-index: 10;
 }
 
 .resizer:hover {
