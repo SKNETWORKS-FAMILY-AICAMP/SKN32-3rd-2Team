@@ -8,11 +8,9 @@ load_dotenv()
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from .auth import SESSION_MAX_AGE_SECONDS, get_current_user, require_login
-from .auth import _had_session_cookie
+from .auth import SESSION_MAX_AGE_SECONDS, post_login_redirect_url, require_login
 from .auth_router import router as auth_router
 from .database import warm_up as warm_up_db
 from app.admin.stats_router import router as stats_router
@@ -66,26 +64,15 @@ app.include_router(users_router)
 app.include_router(stats_router)
 app.include_router(documents_router)
 app.include_router(chat_router)
-templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 
 @app.get("/", response_class=HTMLResponse)
 def root(request: Request):
-    had_session = _had_session_cookie(request)
-    user = get_current_user(request)
-    if user:
-        return RedirectResponse(url="/main", status_code=303)
-    login_url = "/login?expired=1" if had_session else "/login"
-    return RedirectResponse(url=login_url, status_code=303)
-
-
-@app.get("/main", response_class=HTMLResponse)
-def main_page(request: Request):
+    """로그인 안 됐으면 로그인 화면으로,
+    로그인 됐으면 관리자는 /admin/stats로,
+    일반 유저는 /chat으로 보낸다."""
     user, redirect = require_login(request)
     if redirect:
         return redirect
 
-    if user.get("is_admin"):
-        return RedirectResponse(url="/admin/stats", status_code=303)
-
-    return templates.TemplateResponse(request, "main.html", {"user": user, "active": "chat_new"})
+    return RedirectResponse(url=post_login_redirect_url(user.get("is_admin")), status_code=303)

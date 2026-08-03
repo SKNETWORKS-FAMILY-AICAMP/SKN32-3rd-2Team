@@ -98,16 +98,24 @@ def require_login_api(request: Request):
     return user
 
 
+def post_login_redirect_url(is_admin: bool) -> str:
+    """로그인 직후(또는 이미 로그인된 상태로 /login에 온 경우) 보낼 목적지.
+    관리자는 챗봇을 쓰지 않으므로 통계 화면으로, 일반 유저는 채팅 화면으로 보낸다.
+    /main을 거쳐 다시 리다이렉트되던 걸 없애기 위해 이 함수로 최종 목적지를 바로 계산한다.
+    세션 dict({"is_admin": ...})든 User 모델(.is_admin)이든 호출부에서 bool만 뽑아 넘기면 된다."""
+    return "/admin/stats" if is_admin else "/chat"
+
+
 def require_admin(request: Request):
     """관리자 전용 페이지 라우트에서 로그인 및 관리자 권한을 검사한다.
-    미로그인 시 로그인 화면으로(세션 만료였다면 ?expired=1과 함께), 관리자가 아니면 메인 화면으로 리다이렉트한다."""
+    미로그인 시 로그인 화면으로(세션 만료였다면 ?expired=1과 함께), 관리자가 아니면 채팅 화면으로 리다이렉트한다."""
     had_session = _had_session_cookie(request)
     user = get_current_user(request)
     if user is None:
         login_url = "/login?expired=1" if had_session else "/login"
         return None, RedirectResponse(url=login_url, status_code=303)
     if not user.get("is_admin"):
-        return None, RedirectResponse(url="/main", status_code=303)
+        return None, RedirectResponse(url=post_login_redirect_url(False), status_code=303)
     return user, None
 
 
