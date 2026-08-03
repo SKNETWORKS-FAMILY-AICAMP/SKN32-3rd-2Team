@@ -1,8 +1,14 @@
 
 
 -- ---------------------------------------------------------
--- Sample Data Insert for Testing
+-- Reset and seed document table for local testing
+-- 실행 순서: 스키마 생성 후 한 번만 실행하세요.
+-- 예: mysql -u <사용자> -p < RAG/sql/rag_document.sql
 -- ---------------------------------------------------------
+
+SET foreign_key_checks = 0;
+TRUNCATE TABLE `document`;
+SET foreign_key_checks = 1;
 
 -- 공통 PDF 문서 데이터 (숫자로 시작하는 파일 - common_ 접두사로 구분)
 INSERT INTO `document` (`original_file_name`, `stored_file_name`, `file_path`, `is_loaded`, `loaded_at`) VALUES ('1.남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률(법률).pdf', 'common_1.남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률(법률).pdf', 'res/pdf/1.남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률(법률).pdf', 0, null);

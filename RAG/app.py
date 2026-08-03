@@ -61,7 +61,6 @@ def initialize_database():
         # SQL 파일 경로
         base_dir = os.path.dirname(os.path.dirname(__file__))
         schema_file = os.path.join(base_dir, 'sql', 'rag_chatbot_schema.sql')
-        data_file = os.path.join(base_dir, 'RAG', 'sql', 'rag_document.sql')
         
         # 스키마 파일 실행
         if os.path.exists(schema_file):
@@ -75,25 +74,9 @@ def initialize_database():
                         cursor.execute(statement)
             connection.commit()
             print("Database schema initialized successfully")
-        
-        # 데이터 파일 실행
-        # if True:
-        if False:
-            if os.path.exists(data_file):
-                with open(data_file, 'r', encoding='utf-8') as f:
-                    sql_script = f.read()
-                    statements = sql_script.split(';')
-                    for statement in statements:
-                        statement = statement.strip()
-                        if statement and not statement.startswith('--'):
-                            try:
-                                cursor.execute(statement)
-                            except Error as e:
-                                # 중복 데이터 등의 오류는 무시
-                                if "Duplicate entry" not in str(e):
-                                    print(f"Warning: {e}")
-                connection.commit()
-                print("Sample data inserted successfully")
+
+        # 초기 샘플 문서는 별도 SQL 파일을 한 번 실행해 주세요.
+        # 예: mysql -u <사용자> -p < RAG/sql/rag_document.sql
         
         cursor.close()
         connection.close()
