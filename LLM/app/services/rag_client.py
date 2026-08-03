@@ -117,6 +117,32 @@ async def close_client() -> None:
         _client = None
 
 
+def _relevant(results: list[dict], min_score: float) -> list[dict]:
+    """관련도가 낮은 결과를 걷어낸다.
+
+    RAG 는 관련 문서가 없어도 top_k 를 무관한 청크로 채워 돌려준다. 그대로
+    프롬프트에 넣으면 모델이 근거가 있다고 착각하고 문서에 없는 수치를 지어낸다.
+    근거 없이 그럴듯한 답을 하느니 "찾을 수 없습니다" 가 낫다.
+
+    점수가 아예 없는 응답(구버전 RAG, mock)에서는 아무것도 거르지 않는다.
+    거르는 기준이 없는데 전부 버리면 검색이 통째로 죽는다.
+    """
+    if min_score <= 0:
+        return results
+    scored = [r for r in results if r.get("rerank_score") is not None]
+    if not scored:
+        return results
+    kept = [r for r in scored if r["rerank_score"] >= min_score]
+    if len(kept) < len(scored):
+        logger.info(
+            "관련도 낮은 검색 결과 %d/%d 건 제외 (기준 %.3f)",
+            len(scored) - len(kept),
+            len(scored),
+            min_score,
+        )
+    return kept
+
+
 def _to_chunks(results: list[dict], top_k: int) -> list[RetrievedChunk]:
     """RAG 응답을 내부 모델로 바꾸면서 중복을 제거한다.
 
@@ -188,6 +214,9 @@ async def search(query: str, top_k: int | None = None) -> tuple[list[RetrievedCh
         return [], True, int((time.perf_counter() - started) * 1000)
 
     results = payload.get("results", []) if isinstance(payload, dict) else []
+    results = _relevant(results, settings.rag_min_score)
+    # 관련 문서가 하나도 없어도 degraded 가 아니다 — 검색은 정상 동작했고,
+    # 답이 코퍼스에 없을 뿐이다. degraded 는 RAG 호출 자체가 실패했을 때만 쓴다.
     return _to_chunks(results, k), False, int((time.perf_counter() - started) * 1000)
 
 
