@@ -103,6 +103,14 @@ def _recent_history(db: Session, chatroom_id: str, pairs: int = HISTORY_PAIRS) -
     return [{"speaker": chat.speaker, "message": chat.message} for chat in reversed(recent)]
 
 
+def _save_error_turn(db: Session, chatroom_id: str, message: str, error: ChatAPIError) -> None:
+    """에러가 나도 대화 이력은 온전히 남긴다: 사용자 질문(topic=에러) + llm 쪽엔 에러 안내 문구.
+    재접속해서 대화방을 다시 열어도 "다시 시도해주세요" 문구가 그대로 보이게 된다."""
+    db.add(Chat(chatroom_id=chatroom_id, speaker="user", message=message, topic="에러"))
+    db.add(Chat(chatroom_id=chatroom_id, speaker="llm", message=error.message))
+    db.commit()
+
+
 def send_message(db: Session, chatroom_id: str, user_id: str, message: str) -> dict:
     """사용자 메시지를 저장하고, Chat API로 답변을 생성해 저장한 뒤 화면 표시용 데이터를 반환한다.
 
@@ -118,28 +126,29 @@ def send_message(db: Session, chatroom_id: str, user_id: str, message: str) -> d
     history = _recent_history(db, chatroom_id)
     is_first_message = chatroom.chatroom_name == "새 대화"
 
-    # 답변 생성(/v1/chat)과 제목 생성(/v1/chatroom-name)은 서로 의존관계가 없으므로
-    # 첫 메시지일 때는 두 요청을 동시에 던져서 순차 실행 시 더해지던 지연을 없앤다.
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        chat_future = executor.submit(get_chat_completion, chatroom_id, message, history)
-        name_future = executor.submit(generate_chatroom_name, message) if is_first_message else None
+    if is_first_message:
+        # 첫 메시지일 때만 두 요청을 동시에 던져서 순차 실행 시 더해지던 지연을 없앤다.
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            chat_future = executor.submit(get_chat_completion, chatroom_id, message, history)
+            name_future = executor.submit(generate_chatroom_name, message)
 
-        try:
-            result = chat_future.result()
-        except ChatAPIError as e:
-            # 에러가 나도 대화 이력은 온전히 남긴다: 사용자 질문(topic=에러) + llm 쪽엔 에러 안내 문구.
-            # 재접속해서 대화방을 다시 열어도 "다시 시도해주세요" 문구가 그대로 보이게 된다.
-            db.add(Chat(chatroom_id=chatroom_id, speaker="user", message=message, topic="에러"))
-            db.add(Chat(chatroom_id=chatroom_id, speaker="llm", message=e.message))
-            db.commit()
-            raise ChatServiceError(e.message, status_code=e.status_code)
+            try:
+                result = chat_future.result()
+            except ChatAPIError as e:
+                _save_error_turn(db, chatroom_id, message, e)
+                raise ChatServiceError(e.message, status_code=e.status_code)
 
-        if name_future is not None:
             try:
                 chatroom.chatroom_name = name_future.result()
             except ChatAPIError:
                 # 제목 생성 실패는 대화 자체를 막을 이유가 없으므로, 조용히 기존 방식으로 대체한다.
                 chatroom.chatroom_name = message[:30]
+    else:
+        try:
+            result = get_chat_completion(chatroom_id, message, history)
+        except ChatAPIError as e:
+            _save_error_turn(db, chatroom_id, message, e)
+            raise ChatServiceError(e.message, status_code=e.status_code)
 
     db.add(Chat(chatroom_id=chatroom_id, speaker="user", message=message, topic=result["topic"]))
 
