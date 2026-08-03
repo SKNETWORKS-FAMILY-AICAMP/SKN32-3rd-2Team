@@ -84,10 +84,18 @@ app.include_router(meta.router)
 
 @app.exception_handler(LLMServiceError)
 async def llm_error_handler(request: Request, exc: LLMServiceError) -> JSONResponse:
-    """모든 서비스 예외를 docs/API.md 6절의 형태로 통일한다."""
+    """모든 서비스 예외를 docs/API.md 의 에러 규약 형태로 통일한다."""
+    headers = {}
+    # 한도 초과는 '기다리면 풀리는' 실패다. 얼마나 기다려야 하는지 알려주면
+    # 호출자가 무작정 재시도하지 않고 그만큼 쉬었다 올 수 있다.
+    retry_after = getattr(exc, "retry_after", None)
+    if retry_after:
+        headers["Retry-After"] = str(int(retry_after) + 1)
+
     return JSONResponse(
         status_code=exc.status_code,
         content={"error_code": exc.error_code, "message": exc.message},
+        headers=headers or None,
     )
 
 
