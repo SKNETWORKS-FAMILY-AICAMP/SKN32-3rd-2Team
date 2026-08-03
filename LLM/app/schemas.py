@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.domain import TOPIC_CATEGORIES
 
-ProviderName = Literal["openai", "gemini"]
+ProviderName = Literal["openai", "gemini", "qwen"]
 Speaker = Literal["user", "llm"]
 
 

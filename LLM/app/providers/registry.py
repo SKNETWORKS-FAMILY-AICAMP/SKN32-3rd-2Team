@@ -22,7 +22,10 @@ logger = logging.getLogger(__name__)
 
 _cache: dict[str, LLMProvider] = {}
 
-SUPPORTED = ("openai", "gemini")
+SUPPORTED = ("openai", "gemini", "qwen")
+
+# 키가 필요 없는 프로바이더. is_configured() 가 키 유무로 판단하므로 예외를 둔다.
+KEYLESS = ("qwen",)
 
 
 def get_provider(name: str | None = None) -> LLMProvider:
@@ -43,6 +46,15 @@ def get_provider(name: str | None = None) -> LLMProvider:
         from app.providers.openai_provider import OpenAIProvider
 
         provider = OpenAIProvider()
+    elif resolved == "qwen":
+        # 로컬 오픈소스(Ollama). 아직 구현 전이면 서버가 죽지 않고 503 으로 떨어지게 한다.
+        try:
+            from app.providers.qwen_provider import QwenProvider
+        except ImportError as exc:
+            raise ProviderNotConfigured(
+                "Qwen 프로바이더가 아직 준비되지 않았습니다."
+            ) from exc
+        provider = QwenProvider()
     else:
         from app.providers.gemini_provider import GeminiProvider
 
