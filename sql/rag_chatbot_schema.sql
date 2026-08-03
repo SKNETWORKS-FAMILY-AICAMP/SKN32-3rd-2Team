@@ -18,7 +18,10 @@ CREATE TABLE `user` (
     `department`   VARCHAR(100) NOT NULL COMMENT '부서명',
     `is_admin`     BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '관리자 여부',
     `is_disabled`  BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '비활성화 여부',
+    `is_deleted`   BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '삭제 여부',
     `created_at`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 일자',
+    `updated_at`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정 일자',
+    `deleted_at`   DATETIME     NULL COMMENT '삭제 일자',
     PRIMARY KEY (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='사용자';
 
