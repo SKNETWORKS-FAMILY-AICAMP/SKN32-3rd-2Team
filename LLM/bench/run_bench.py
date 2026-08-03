@@ -30,6 +30,7 @@ import asyncio
 import contextvars
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime
@@ -76,6 +77,57 @@ def _install_corpus_retrieval(top_k: int) -> None:
     rag_client.search = _search  # type: ignore[assignment]
 
 
+# 답변이 인용한 조문이 실제로 근거 문서 안에 있었는지 보려면 청크 **본문**이
+# 필요하다. API 응답에는 본문이 안 나가므로(파일명·페이지만) 검색 함수를 한 겹
+# 감싸 본문을 붙잡아 둔다.
+_ARTICLE = re.compile(r"제\s?\d+조(?:의\s?\d+)?")
+# 조 번호 없이 항·호만 대는 인용. "근로기준법 제2항에 명시되어 있습니다" 처럼
+# 쓰면 법령에서 그런 식으로 특정할 수 없어 확인이 불가능하다. 청크가 조문
+# 중간부터 시작해 조 번호가 안 보일 때 모델이 주워 쓴다.
+#
+# "별지 제1호 서식" 은 제외한다. 서식 번호이지 조문 인용이 아니다
+# (시간선택제 전환 신청서 안내에서 걸려 오탐이 났다).
+_BARE_CLAUSE = re.compile(r"(?<!별지 )(?<!별표 )제\s?\d+[항호](?!\s*서식)")
+_last_context: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "last_context", default=""
+)
+
+
+def _wrap_search_to_capture() -> None:
+    from app.services import rag_client
+
+    original = rag_client.search
+
+    async def _capturing(query: str, k: int | None = None):
+        chunks, degraded, ms = await original(query, k)
+        _last_context.set("\n".join(c.content for c in chunks))
+        return chunks, degraded, ms
+
+    rag_client.search = _capturing  # type: ignore[assignment]
+
+
+def _citation_check(answer: str | None) -> tuple[list[str], list[str]]:
+    """답변이 든 조문 번호 중 근거 문서에 없는 것을 골라낸다.
+
+    규정 안내 서비스에서 잘못된 조문 인용은 내용이 맞아도 신뢰를 깎는다.
+    실제로 "휴일근로 100분의 50 가산"(제56조)을 설명하며 제55조·제57조를
+    대는 일이 있었다. 근거 문서가 조문 중간부터 시작해 조 번호가 안 보이면
+    모델이 기억으로 번호를 붙이기 때문이다.
+    """
+    if not answer:
+        return [], []
+    context = _last_context.get()
+    cited = sorted({m.replace(" ", "") for m in _ARTICLE.findall(answer)})
+    in_context = {m.replace(" ", "") for m in _ARTICLE.findall(context)}
+    bad = [c for c in cited if c not in in_context]
+
+    # 조 번호 없이 항·호만 댄 것도 잘못된 인용이다. 답변에 `제N조` 가 하나도
+    # 없는데 `제N항` 이 나오면 그렇게 본다.
+    if not cited:
+        bad += [m.replace(" ", "") for m in _BARE_CLAUSE.findall(answer)]
+    return cited, sorted(set(bad))
+
+
 async def _run_one(question: dict, provider: str, top_k: int) -> dict:
     from app.errors import LLMServiceError
     from app.schemas import ChatRequest
@@ -97,6 +149,8 @@ async def _run_one(question: dict, provider: str, top_k: int) -> dict:
     except LLMServiceError as exc:
         error_code = exc.error_code
     latency_ms = int((time.perf_counter() - started) * 1000)
+
+    cited, bad = _citation_check(res.answer if res else None)
 
     expected_sources = question.get("sources") or []
     # 파일명만 담으면 같은 문서의 다른 페이지가 중복처럼 보인다.
@@ -124,6 +178,9 @@ async def _run_one(question: dict, provider: str, top_k: int) -> dict:
         else None,
         "answer": res.answer if res else None,
         "answer_chars": len(res.answer) if res else 0,
+        "cited_articles": cited,
+        # 근거 문서에 없는 조문을 든 것. 내용이 맞아도 신뢰를 깎는다.
+        "bad_citations": bad,
         "rag_degraded": bool(res.rag_degraded) if res else None,
         "latency_ms": latency_ms,
         "error_code": error_code,
@@ -180,6 +237,7 @@ async def main() -> int:
         os.environ.setdefault("RAG_TIMEOUT_SEC", "30")
         os.environ["RAG_TOP_K"] = str(args.top_k)
         get_settings.cache_clear()
+    _wrap_search_to_capture()
 
     # 프롬프트 변형은 서비스 모듈이 임포트된 **뒤**에 적용해야 한다.
     # (소비처의 모듈 속성을 갈아끼우는 방식이라 대상이 먼저 있어야 한다)

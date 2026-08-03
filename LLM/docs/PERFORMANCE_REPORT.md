@@ -1,6 +1,6 @@
 # 성능 보고서 — LLM 서비스
 
-> 자동 생성: `python bench/report.py` · 2026-08-03 15:31
+> 자동 생성: `python bench/report.py` · 2026-08-03 16:16
 > 원본 측정값은 `bench/results/*.jsonl` (git 미포함), 질문 세트는 `bench/questions.yaml`.
 
 ## 1. 측정 방법과 그 한계

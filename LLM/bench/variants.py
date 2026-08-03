@@ -147,6 +147,40 @@ if not prompts.ANSWER_SYSTEM.startswith(_KOREAN_DIRECTIVE):
 ANSWER_SYSTEM_NO_LANG = prompts.ANSWER_SYSTEM[len(_KOREAN_DIRECTIVE) :]
 
 
+# --- 후보 5: cite-negative — 조문 인용 규칙을 금지형으로 쓴다 --------------
+#
+# 운영 프롬프트(3번 규칙)는 **긍정형 기본값**을 준다.
+#   "출처는 규정 이름까지만 쓰는 것이 기본. 조 번호가 눈에 보일 때만 더하라"
+#
+# 처음에는 금지형으로 썼었다.
+#   "제N조가 실제로 적혀 있을 때만 인용하라. 항·호 번호만 있는 것은 인용이
+#    아니다. '제2항에 명시되어 있습니다' 라고 쓰면 안 된다"
+#
+# 손으로 몇 개 던져 보니 금지형은 "근로기준법 제2항" 같은 형식 오류를 냈고,
+# 긍정형은 "근로기준법 제57조" 처럼 **그럴듯한데 틀린** 조문을 대기도 했다.
+# 후자가 더 위험해 보였지만 표본이 각 1건이라 판단할 수 없었다.
+# 그래서 `bad_citations` 지표를 만들어 35문항으로 비교한다.
+_CITE_NEGATIVE = """3. 조문 번호는 **[참고 문서]에 `제N조` 형태로 실제로 적혀 있을 때만** 인용하세요.
+   기억으로 번호를 붙이면 안 됩니다. 문서가 조문 중간부터 시작해 `제N조`가
+   안 보이면 **번호 없이 내용으로만** 답하세요.
+   `제2항`·`제3호`처럼 항·호 번호만 있는 것은 인용이 아닙니다. 조 번호 없이
+   "제2항에 명시되어 있습니다" 라고 쓰면 안 됩니다.
+   수치와 표현도 문서에 적힌 대로 쓰세요. (문서가 "통상임금의 100분의 50을
+   가산"이라고 하면 그렇게 쓰고, "1.5배" 처럼 바꿔 말하지 마세요)"""
+
+_CITE_POSITIVE_START = "3. 출처를 밝힐 때는"
+_CITE_POSITIVE_END = '"1.5배" 처럼 바꿔 말하지 마세요)'
+
+
+def _swap_rule3(text: str, replacement: str) -> str:
+    start = text.index(_CITE_POSITIVE_START)
+    end = text.index(_CITE_POSITIVE_END, start) + len(_CITE_POSITIVE_END)
+    return text[:start] + replacement + text[end:]
+
+
+ANSWER_SYSTEM_CITE_NEGATIVE = _swap_rule3(prompts.ANSWER_SYSTEM, _CITE_NEGATIVE)
+
+
 # --- v0: 승격 이전의 운영 프롬프트 (박제) ---------------------------------
 #
 # catdef2 를 `app/prompts.py` 로 승격했으므로, 이제 `--variant baseline` 은
@@ -178,6 +212,7 @@ VARIANTS: dict[str, dict[str, str]] = {
     "fewshot": {"TOPIC_SYSTEM": TOPIC_SYSTEM_FEWSHOT},
     "catdef2": {"TOPIC_SYSTEM": TOPIC_SYSTEM_CATDEF2},
     "nolang": {"ANSWER_SYSTEM": ANSWER_SYSTEM_NO_LANG},
+    "cite-negative": {"ANSWER_SYSTEM": ANSWER_SYSTEM_CITE_NEGATIVE},
 }
 
 # 상수 이름 → 그 값을 실제로 쓰는 모듈 경로.
