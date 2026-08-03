@@ -86,7 +86,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const data = await res.json();
     messagesEl.innerHTML = "";
-    data.items.forEach(m => appendMessage(m.speaker, m.message));
+    data.items.forEach(m => appendMessage(m.speaker, m.message, false, m.sources));
   }
 
   function formatSource(source) {
@@ -99,7 +99,7 @@ document.addEventListener("DOMContentLoaded", function () {
     el.className = `chat-message ${speaker}` + (isTyping ? " typing" : "");
     el.textContent = text;
 
-    if (speaker === "llm" && sources && sources.length && ragDegraded==false) {
+    if (speaker === "llm" && sources && sources.length && !ragDegraded) {
       el.classList.add("has-sources");
       el.title = "근거 문서\n" + sources.map(formatSource).join("\n");
     } else if (speaker === "llm" && ragDegraded) {
