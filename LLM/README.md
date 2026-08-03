@@ -57,6 +57,31 @@ RAG_MODE=mock     # RAG 서비스 호출 안 함
 **공개 API 계약은 live 모드와 완전히 동일하다.** 요청 body 로는 선택할 수 없고 환경변수로만 켜지므로,
 프론트 코드는 mock 여부를 알 필요가 없다.
 
+### Qwen(로컬 모델)은 설치하지 않아도 된다
+
+이 저장소는 프로바이더를 셋 지원한다 — `openai`, `gemini`, `qwen`.
+이 중 **Qwen 만 로컬에 [Ollama](https://ollama.com) 가 떠 있어야** 동작한다.
+
+**Ollama 를 설치하지 않아도 서비스는 정상적으로 돈다.** 기본 프로바이더가
+`openai` 라 평소 경로는 Qwen 을 전혀 타지 않는다. 다른 PC 에서 받아 실행할 때
+따로 할 일은 없다.
+
+- 서버 기동: 정상 (예열 실패 경고만 로그에 남는다)
+- `POST /v1/chat`: 정상
+- `GET /health`: `"qwen": false` 로 표시된다
+- `provider: "qwen"` 을 **명시해서** 부른 경우에만 `503 LLM_UNAVAILABLE`
+
+굳이 Qwen 을 써보려면 Ollama 설치 후 아래를 실행하면 된다. 4.7GB 를 내려받고
+실행 중에 VRAM 을 계속 점유하므로, 필요할 때만 하면 된다.
+
+```bash
+ollama pull qwen2.5:7b
+```
+
+Qwen 을 왜 넣었는지와 실측 성능은 [docs/PERFORMANCE_REPORT.md](docs/PERFORMANCE_REPORT.md)
+4절 참조 — 요약하면 **주제 분류에는 쓸 만하지만(정확도 94%, 무료) 답변 생성에는
+쓸 수 없다**(한국어 질문에 중국어로 답하는 경우가 있다).
+
 ---
 
 ## 환경변수
