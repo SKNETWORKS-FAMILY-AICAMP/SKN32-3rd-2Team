@@ -929,6 +929,19 @@ a:focus-visible {
   color: var(--ink-400);
 }
 
+.chat-message.has-sources {
+  cursor: help;
+}
+
+.chat-message.has-sources::after {
+  content: "📄";
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  opacity: 0.55;
+  vertical-align: middle;
+}
+
 .chat-input-bar {
   flex: none;
   display: flex;
