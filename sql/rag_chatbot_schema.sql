@@ -18,7 +18,7 @@ CREATE TABLE `user` (
     `department`   VARCHAR(100) NOT NULL COMMENT '부서명',
     `is_admin`     BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '관리자 여부',
     `is_disabled`  BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '비활성화 여부',
-    `is_deleted`   BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '삭제 여부',
+    `is_deleted`   BOOLEAN      NOT NULL DEFAULT FALSE COMMENT '삭제 여부(소프트 삭제)',
     `created_at`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 일자',
     `updated_at`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정 일자',
     `deleted_at`   DATETIME     NULL COMMENT '삭제 일자',
@@ -92,3 +92,22 @@ CREATE TABLE `document` (
     `deleted_at`  DATETIME     NULL COMMENT '삭제 일자',
     PRIMARY KEY (`doc_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='RAG 문서';
+
+
+-- ---------------------------------------------------------
+-- 6. chat_source : 채팅 답변의 근거 문서
+-- ---------------------------------------------------------
+CREATE TABLE `chat_source` (
+    `source_id`  INT          NOT NULL AUTO_INCREMENT COMMENT '근거 문서 고유 번호',
+    `chat_id`    INT          NOT NULL COMMENT '근거가 달린 채팅(llm 응답) ID',
+    `doc_id`     INT          NULL COMMENT '문서 ID (document.doc_id 참조 값, 강한 FK는 아님)',
+    `file_name`  VARCHAR(255) NOT NULL COMMENT '문서 파일명 (응답 시점 스냅샷)',
+    `page`       INT          NULL COMMENT '문서 내 페이지 번호',
+    `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 일자',
+    PRIMARY KEY (`source_id`),
+    KEY `idx_chat_source_chat_id` (`chat_id`),
+    CONSTRAINT `fk_chat_source_chat`
+        FOREIGN KEY (`chat_id`) REFERENCES `chat` (`chat_id`)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='채팅 답변의 근거 문서';
+

@@ -11,6 +11,7 @@ from .auth import (
     create_session,
     get_current_user,
     hash_password,
+    post_login_redirect_url,
     verify_password,
 )
 from .database import get_db
@@ -30,7 +31,7 @@ USER_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{4,20}$")
 def login_page(request: Request):
     user = get_current_user(request)
     if user:
-        return RedirectResponse(url="/main", status_code=303)
+        return RedirectResponse(url=post_login_redirect_url(user.get("is_admin")), status_code=303)
     return templates.TemplateResponse(request, "login.html", {"error": None})
 
 
@@ -61,7 +62,7 @@ def login_submit(
 
     create_session(request, user.user_id, user.name, user.is_admin)
     record_login(db, user.user_id)
-    return RedirectResponse(url="/main", status_code=303)
+    return RedirectResponse(url=post_login_redirect_url(user.is_admin), status_code=303)
 
 
 @router.get("/auth/check-user-id")

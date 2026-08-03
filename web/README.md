@@ -11,12 +11,13 @@ python run.py
 
 ## 환경변수
 
-| 변수 | 설명 | 기본값                    |
-|---|---|------------------------|
-| `DATABASE_URL` | MySQL 연결 문자열. 예: `mysql+pymysql://change-user:change-pw@change-ip:change-port/rag_chatbot?charset=utf8mb4` | 미설정 시 에러               |
-| `SESSION_SECRET_KEY` | 세션 쿠키 서명 키 (운영 배포 시 반드시 변경) | `dev-secret-change-me` |
+| 변수 | 설명                                                                                                                       | 기본값                    |
+|---|--------------------------------------------------------------------------------------------------------------------------|------------------------|
+| `DATABASE_URL` | MySQL 연결 문자열. 예: `mysql+pymysql://change-user:change-pw@change-ip:change-port/rag_chatbot?charset=utf8mb4`               | 미설정 시 에러               |
+| `SESSION_SECRET_KEY` | 세션 쿠키 서명 키 (운영 배포 시 반드시 변경)                                                                                              | `dev-secret-change-me` |
 | `CHAT_API_BASE_URL` | Chat API 서버 주소. 예: `https://chat-api.example.com`. 미설정 시 채팅 응답 요청이 `PROVIDER_NOT_CONFIGURED` 오류로 즉시 실패합니다 (서버 자체는 정상 기동됨) | 미설정 |
-| `CHAT_API_TIMEOUT_SECONDS` | Chat API 응답 대기 타임아웃(초). Chat API 서버의 자체 생성 타임아웃(5초)보다 넉넉하게 잡아야 서버가 준 504 응답을 우리 쪽 타임아웃이 가로채지 않습니다 | `15` |
+| `CHAT_API_TIMEOUT_SECONDS` | Chat API 응답 대기 타임아웃(초). Chat API 서버의 자체 생성 타임아웃(5초)보다 넉넉하게 잡아야 서버가 준 504 응답을 우리 쪽 타임아웃이 가로채지 않습니다                        | `15` |
+| `DOC_API_BASE_URL` | RAG API 서버 주소. 예: `https://chat-api.example.com`.  | 미설정 |
 
 ## 화면 구성
 
