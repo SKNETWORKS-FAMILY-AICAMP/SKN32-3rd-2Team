@@ -191,11 +191,22 @@ def _score(query_grams: set[str], chunk_text: str) -> float:
     return len(query_grams & grams) / len(query_grams)
 
 
+# 법령 파일명은 판본이 괄호로 붙는다: "5.근로기준법(법률).pdf", "...(시행령).pdf"
+# 사내 문서는 괄호가 없다("직원인사규정 시행규칙.pdf" 처럼 같은 단어가 들어가도
+# 괄호가 아니므로 걸리지 않는다).
+_LAW_SUFFIX = re.compile(r"\((법률|시행령|시행규칙)\)")
+
+
+def is_law(filename: str) -> bool:
+    return bool(_LAW_SUFFIX.search(filename))
+
+
 def search(
     query: str,
     files: list[str],
     top_k: int = 5,
     corpus: dict[str, list[Chunk]] | None = None,
+    internal_quota: float = 0.5,
 ) -> list[RetrievedChunk]:
     """`files` 로 지정한 문서 **안에서만** 관련 구간을 찾는다.
 
@@ -218,11 +229,28 @@ def search(
 
     scored.sort(key=lambda x: x[0], reverse=True)
 
+    # 사내 규정에 자리를 먼저 배정한다.
+    #
+    # 그냥 점수순으로 뽑으면 법령이 거의 다 차지한다. 법령이 청크 450개인데
+    # 사내 문서는 228개라 분량만으로 유리하기 때문이다. 의도한 게 아니라
+    # 코퍼스 구성에서 오는 편향이다.
+    #
+    # 그런데 직원이 알아야 할 답은 대개 사내 규정에 있다. 법령은 최저 기준이고
+    # 사내 규정이 그보다 유리한 경우가 많다 — 근로기준법은 연차 15일이지만
+    # 복무규정 제20조는 3년 이상 재직 시 최대 25일까지 준다.
+    #
+    # 그래서 사내 문서에 `internal_quota` 만큼 자리를 예약하고, 남는 자리를
+    # 점수순으로 채운다. 사내 문서가 부족하면 법령이 그 자리를 가져간다.
+    internal = [(s, c) for s, c in scored if s > 0 and not is_law(c.file)]
+    law = [(s, c) for s, c in scored if s > 0 and is_law(c.file)]
+
+    reserved = min(len(internal), int(top_k * internal_quota + 0.5))
+    picked = internal[:reserved] + law
+    picked += internal[reserved:]
+
     out: list[RetrievedChunk] = []
     seen: set[tuple[str, int]] = set()
-    for score, chunk in scored:
-        if score <= 0:
-            break
+    for score, chunk in picked:
         key = (chunk.file, chunk.page)
         if key in seen:
             continue

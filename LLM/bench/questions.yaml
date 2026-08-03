@@ -39,19 +39,19 @@ questions:
     group: annual-leave
     question: 연차 며칠까지 쓸 수 있나요?
     category: 휴가/휴직
-    sources: ["5.근로기준법(법률).pdf", "복무규정.pdf"]
+    sources: ["복무규정.pdf", "5.근로기준법(법률).pdf"]
 
   - id: leave-annual-b
     group: annual-leave
     question: 유급휴가는 １년에 얼마나 주어지나요?
     category: 휴가/휴직
-    sources: ["5.근로기준법(법률).pdf", "복무규정.pdf"]
+    sources: ["복무규정.pdf", "5.근로기준법(법률).pdf"]
 
   - id: leave-annual-c
     group: annual-leave
     question: 제가 쓸 수 있는 휴가 일수가 궁금합니다
     category: 휴가/휴직
-    sources: ["5.근로기준법(법률).pdf", "복무규정.pdf"]
+    sources: ["복무규정.pdf", "5.근로기준법(법률).pdf"]
     note: 개인 잔여일수를 묻는 것처럼 보이지만 일반 기준을 먼저 답해야 한다
 
   - id: leave-parental-a
@@ -59,6 +59,7 @@ questions:
     question: 육아휴직은 얼마나 쓸 수 있나요?
     category: 휴가/휴직
     sources:
+      - "직원인사규정.pdf"
       - "1.남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률(법률).pdf"
       - "1.남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률(시행령).pdf"
       - "1.남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률(시행규칙).pdf"
@@ -68,6 +69,7 @@ questions:
     question: 아이를 키우려고 쉬려는데 기간이 어떻게 되나요?
     category: 휴가/휴직
     sources:
+      - "직원인사규정.pdf"
       - "1.남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률(법률).pdf"
       - "1.남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률(시행령).pdf"
       - "1.남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률(시행규칙).pdf"
@@ -112,6 +114,7 @@ questions:
     question: 법정 근로시간은 주 몇 시간인가요?
     category: 근태/근무형태
     sources:
+      - "복무규정.pdf"
       - "5.근로기준법(법률).pdf"
       - "5.근로기준법(시행령).pdf"
       - "5.근로기준법(시행규칙).pdf"
@@ -126,13 +129,13 @@ questions:
     group: overtime-pay
     question: 초과근무 수당은 어떻게 계산되나요?
     category: 급여/보수
-    sources: ["5.근로기준법(법률).pdf", "공무직 직원 인사 및 보수에 관한 규칙.pdf"]
+    sources: ["복무규정.pdf", "공무직 직원 인사 및 보수에 관한 규칙.pdf", "5.근로기준법(법률).pdf"]
 
   - id: pay-overtime-b
     group: overtime-pay
     question: 야근하면 수당을 얼마나 더 받나요?
     category: 급여/보수
-    sources: ["5.근로기준법(법률).pdf", "공무직 직원 인사 및 보수에 관한 규칙.pdf"]
+    sources: ["복무규정.pdf", "공무직 직원 인사 및 보수에 관한 규칙.pdf", "5.근로기준법(법률).pdf"]
 
   - id: pay-severance
     question: 퇴직금은 어떤 기준으로 산정되나요?
@@ -166,6 +169,7 @@ questions:
     question: 기간제 근로자를 몇 년까지 쓸 수 있나요?
     category: 채용/임용
     sources:
+      - "계약직직원임용지침.pdf"
       - "6.기간제 및 단시간근로자 보호 등에 관한 법률(법률).pdf"
       - "6.기간제 및 단시간근로자 보호 등에 관한 법률(시행령).pdf"
       - "6.기간제 및 단시간근로자 보호 등에 관한 법률(시행규칙).pdf"
@@ -251,7 +255,7 @@ questions:
   - id: oos-personal-balance
     question: 제 연차가 지금 며칠 남았는지 알려주세요
     category: 휴가/휴직
-    sources: ["5.근로기준법(법률).pdf", "복무규정.pdf"]
+    sources: ["복무규정.pdf", "5.근로기준법(법률).pdf"]
     out_of_scope: true
     note: |
       개인 기록은 문서로 알 수 없다. 규정상 일반 기준을 답한 뒤
