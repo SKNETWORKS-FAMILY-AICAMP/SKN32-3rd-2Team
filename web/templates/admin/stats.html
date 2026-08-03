@@ -5,16 +5,15 @@
 {% block content %}
 <div class="admin-panel stats-panel">
   <div class="panel-head">
-    <div>
-      <div class="eyebrow">통계</div>
-      <h1 class="panel-title">통계</h1>
-    </div>
+    <h1 class="panel-title">통계</h1>
   </div>
 
-  <div class="stat-card-row" id="stat-cards"></div>
+  <div class="card">
+    <div class="stat-card-row" id="stat-cards"></div>
+  </div>
 
   <div class="chart-row">
-    <div class="chart-card">
+    <div class="card chart-card">
       <h2 class="chart-card-title">질문 카테고리별 문의 비율</h2>
       <div class="donut-wrap">
         <div class="donut-canvas-box">
@@ -24,7 +23,7 @@
       </div>
     </div>
 
-    <div class="chart-card">
+    <div class="card chart-card">
       <h2 class="chart-card-title">일자별 질문 건수 추이</h2>
       <div class="line-canvas-box">
         <canvas id="daily-trend-line"></canvas>
@@ -32,7 +31,7 @@
     </div>
   </div>
 
-  <div class="chart-card">
+  <div class="card chart-card">
     <h2 class="chart-card-title">FAQ TOP10</h2>
     <table class="data-table">
       <thead>

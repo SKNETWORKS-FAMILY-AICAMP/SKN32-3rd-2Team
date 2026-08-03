@@ -17,7 +17,7 @@
   <div class="app-body">
     {% include "partials/sidebar.html" %}
 
-    <main class="app-content">
+    <main class="app-content {% block content_class %}{% endblock %}">
       {% block content %}{% endblock %}
     </main>
   </div>
