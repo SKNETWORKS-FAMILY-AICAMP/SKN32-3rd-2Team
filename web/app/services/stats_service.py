@@ -5,10 +5,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import Chat, Chatroom, User
-from .llm_client import CATEGORY_OTHER
 
 DEFAULT_TREND_DAYS = 14
 FAQ_TOP_N = 10
+CATEGORY_OTHER = "기타"
 
 
 def get_category_ratio(db: Session) -> list[dict]:
