@@ -130,6 +130,7 @@ async def generate_answer(req: ChatRequest) -> ChatResponse:
                     system=ANSWER_SYSTEM,
                     messages=_to_messages(req, chunks),
                     temperature=0.2,
+                    max_tokens=settings.answer_max_tokens,
                 ),
                 classify(req.message, source_files, req.provider),
             ),
@@ -200,6 +201,7 @@ async def stream_answer(req: ChatRequest) -> AsyncIterator[tuple[str, dict]]:
             system=ANSWER_SYSTEM,
             messages=_to_messages(req, chunks),
             temperature=0.2,
+            max_tokens=settings.answer_max_tokens,
         )
         # 첫 토큰까지만 타임아웃을 건다. 생성이 시작된 뒤에는 끊지 않는다.
         first = await asyncio.wait_for(anext(stream), timeout=settings.llm_timeout_sec)

@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     default_provider: Literal["openai", "gemini"] = "openai"
     llm_timeout_sec: float = 5.0
 
+    # 답변 길이 상한. 프롬프트로 "3~6문장" 을 요구하지만 지시일 뿐이라
+    # 모델이 안 지킬 수 있다 — Qwen2.5:7b 는 벤치에서 2415자를 57초에 걸쳐
+    # 뱉었다. 지시를 안 지키는 모델 때문에 사용자가 기다리는 일이 없도록
+    # 디코더 단에서 막는다. 정상 답변은 중앙값 226자(≈200토큰)라 여유가 있다.
+    answer_max_tokens: int = 500
+
     # live = 실제 API 호출 / mock = 고정 응답.
     # API 키 없이도 팀원이 UI를 붙여볼 수 있게 하는 용도. 공개 API 계약은 동일하다.
     llm_mode: Literal["live", "mock"] = "live"

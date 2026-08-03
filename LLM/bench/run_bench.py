@@ -137,6 +137,11 @@ async def main() -> int:
     ap.add_argument(
         "--variant", default="baseline", help="프롬프트 변형. variants.py 참고"
     )
+    ap.add_argument(
+        "--model",
+        default="",
+        help="모델 이름을 덮어쓴다. 비우면 .env 값. 기록된 JSONL 의 model 필드로 남는다",
+    )
     ap.add_argument("--top-k", type=int, default=5)
     ap.add_argument("--rpm", type=int, default=0, help="분당 요청 상한. 0이면 제한 없음")
     ap.add_argument("--limit", type=int, default=0, help="앞에서 N개만 (빠른 확인용)")
@@ -150,6 +155,9 @@ async def main() -> int:
     # 기록된 latency_ms 로 사후 판단한다.
     os.environ["LLM_TIMEOUT_SEC"] = str(args.timeout)
     os.environ["LLM_MODE"] = "live"
+    if args.model:
+        # 환경변수가 .env 보다 우선한다(pydantic-settings 기본 동작).
+        os.environ[f"{args.provider.upper()}_MODEL"] = args.model
 
     from app.config import get_settings
     from app.providers import registry

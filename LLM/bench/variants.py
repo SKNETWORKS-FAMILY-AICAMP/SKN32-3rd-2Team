@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+from app import prompts
 from app.domain import TOPIC_CATEGORIES
 
 # --- 후보 1: catdef — 카테고리에 정의를 붙인다 ---------------------------
@@ -114,6 +115,38 @@ TOPIC_SYSTEM_CATDEF2 = TOPIC_SYSTEM_CATDEF.replace(
 )
 
 
+# --- 후보 4: korean — 언어를 프롬프트 맨 앞에서 못박는다 -------------------
+#
+# Qwen2.5:7b 가 한국어 질문에 **중국어로 답한다.** 34문항 중 4~5건이 새는데,
+# 한 건은 한자 1601자 vs 한글 132자로 사실상 전문이 중국어였다.
+# (OpenAI 는 같은 프롬프트로 0/34. 모델 고유의 성향이다)
+#
+# 운영 프롬프트에도 "한국어 존댓말로" 라는 지시가 답변 규칙 4번에 이미 있다.
+# 무시당한 이유는 그게 **규칙 목록 중간에 묻혀 있어서** 로 보인다. 그래서
+# 맨 앞 단독 문단으로 올리고, 위반 시 무엇을 하라는지까지 적는다.
+# 5건 → 3건. **없애지는 못했다.** 그래서 Qwen 은 답변 생성용으로 못 쓴다는
+# 결론은 그대로다. 다만 비용이 사실상 없고 방향이 맞아 승격했다.
+#
+# 승격됐으므로 이 후보는 `app/prompts.py` 와 같은 값이다. 아래 문자열은
+# 승격 전 문안을 되살리기 위한 **역방향** 정의다 — 지금의 운영 프롬프트에서
+# 지시 문단을 떼어내면 실험 당시의 "지시 없음" 상태가 된다.
+_KOREAN_DIRECTIVE = """**출력 언어: 한국어.**
+질문이 어떤 언어이든, 참고 문서가 어떤 언어이든 답변은 반드시 한국어로 작성합니다.
+중국어·영어·일본어 문장을 쓰지 마세요. 한자는 법령명 병기 등 꼭 필요한 경우에만
+괄호 안에 씁니다.
+
+"""
+
+if not prompts.ANSWER_SYSTEM.startswith(_KOREAN_DIRECTIVE):
+    raise SystemExit(
+        "prompts.ANSWER_SYSTEM 앞의 언어 지시 문단이 바뀌었습니다. "
+        "variants.py 의 _KOREAN_DIRECTIVE 를 맞춰 주세요."
+    )
+
+# 지시 문단을 뗀 상태 = 이 실험의 '개선 전'
+ANSWER_SYSTEM_NO_LANG = prompts.ANSWER_SYSTEM[len(_KOREAN_DIRECTIVE) :]
+
+
 # --- v0: 승격 이전의 운영 프롬프트 (박제) ---------------------------------
 #
 # catdef2 를 `app/prompts.py` 로 승격했으므로, 이제 `--variant baseline` 은
@@ -144,6 +177,7 @@ VARIANTS: dict[str, dict[str, str]] = {
     "catdef": {"TOPIC_SYSTEM": TOPIC_SYSTEM_CATDEF},
     "fewshot": {"TOPIC_SYSTEM": TOPIC_SYSTEM_FEWSHOT},
     "catdef2": {"TOPIC_SYSTEM": TOPIC_SYSTEM_CATDEF2},
+    "nolang": {"ANSWER_SYSTEM": ANSWER_SYSTEM_NO_LANG},
 }
 
 # 상수 이름 → 그 값을 실제로 쓰는 모듈 경로.
