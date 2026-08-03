@@ -64,17 +64,37 @@ def _basename(path: str) -> str:
     return ntpath.basename(posixpath.basename(path or "")) or ""
 
 
+def _file_name_of(result: dict, metadata: dict) -> str:
+    """출처로 표시할 파일명을 뽑는다.
+
+    RAG 쪽 응답 필드가 여러 번 바뀌었으므로 알려진 이름을 모두 받는다.
+    지금(하이브리드 검색 도입 후)은 `metadata.source_file` 로 온다.
+    마지막 수단인 `metadata.source` 는 **그 사람 PC 의 절대경로**라
+        C:\\Dev_Tools\\rag_test\\rag_only\\RAG\\res/pdf/복무규정.pdf
+    그대로 뿌리면 로컬 경로가 사용자에게 노출되므로 파일명만 남긴다.
+    """
+    return str(
+        result.get("original_file_name")
+        or result.get("file_name")
+        or metadata.get("source_file")
+        or metadata.get("original_file_name")
+        or _basename(metadata.get("source", ""))
+        or ""
+    )
+
+
 def _page_of(result: dict, metadata: dict) -> int | None:
     """사람이 읽는 페이지 번호(1부터)를 뽑는다.
 
-    RAG 의 `metadata.page` 는 0부터라 그대로 쓰면 화면에 'p.0' 이 뜬다.
-    같은 값의 1-based 표기인 `page_label` 이 있으면 그쪽을 우선한다.
+    RAG 가 어느 표기를 주는지가 버전마다 달라서 1-based 인 것부터 확인한다.
+    `metadata.page` 는 0-based 라 그대로 쓰면 화면에 'p.0' 이 뜬다.
     """
     if result.get("page") is not None:
         return result["page"]
-    label = metadata.get("page_label")
-    if label is not None and str(label).isdigit():
-        return int(label)
+    for key in ("page_number", "page_label"):
+        value = metadata.get(key)
+        if value is not None and str(value).isdigit():
+            return int(value)
     page = metadata.get("page")
     return page + 1 if isinstance(page, int) else None
 
@@ -97,6 +117,32 @@ async def close_client() -> None:
         _client = None
 
 
+def _relevant(results: list[dict], min_score: float) -> list[dict]:
+    """관련도가 낮은 결과를 걷어낸다.
+
+    RAG 는 관련 문서가 없어도 top_k 를 무관한 청크로 채워 돌려준다. 그대로
+    프롬프트에 넣으면 모델이 근거가 있다고 착각하고 문서에 없는 수치를 지어낸다.
+    근거 없이 그럴듯한 답을 하느니 "찾을 수 없습니다" 가 낫다.
+
+    점수가 아예 없는 응답(구버전 RAG, mock)에서는 아무것도 거르지 않는다.
+    거르는 기준이 없는데 전부 버리면 검색이 통째로 죽는다.
+    """
+    if min_score <= 0:
+        return results
+    scored = [r for r in results if r.get("rerank_score") is not None]
+    if not scored:
+        return results
+    kept = [r for r in scored if r["rerank_score"] >= min_score]
+    if len(kept) < len(scored):
+        logger.info(
+            "관련도 낮은 검색 결과 %d/%d 건 제외 (기준 %.3f)",
+            len(scored) - len(kept),
+            len(scored),
+            min_score,
+        )
+    return kept
+
+
 def _to_chunks(results: list[dict], top_k: int) -> list[RetrievedChunk]:
     """RAG 응답을 내부 모델로 바꾸면서 중복을 제거한다.
 
@@ -114,25 +160,29 @@ def _to_chunks(results: list[dict], top_k: int) -> list[RetrievedChunk]:
     seen: set[tuple[str, int | None]] = set()
     for r in results:
         metadata = r.get("metadata") or {}
-        name = (
-            r.get("original_file_name")
-            or r.get("file_name")
-            or _basename(metadata.get("source", ""))
-        )
+        name = _file_name_of(r, metadata)
         if not name:
             continue  # 문서명이 없으면 출처로 표시할 수 없다
         page = _page_of(r, metadata)
-        key = (str(name), page)
+        key = (name, page)
         if key in seen:
             continue
         seen.add(key)
+        # doc_id 는 문자열("10")로 오기도 한다. 스키마가 int 라 맞춰준다.
+        doc_id = r.get("doc_id") or metadata.get("doc_id")
+        if isinstance(doc_id, str):
+            doc_id = int(doc_id) if doc_id.isdigit() else None
+        # 리랭커 점수가 있으면 그쪽이 최종 관련도다(faiss/bm25 는 중간 점수).
+        score = r.get("rerank_score")
+        if score is None:
+            score = r.get("score") or metadata.get("score")
         chunks.append(
             RetrievedChunk(
-                original_file_name=str(name),
+                original_file_name=name,
                 content=str(r.get("content") or ""),
-                doc_id=r.get("doc_id") or metadata.get("doc_id"),
+                doc_id=doc_id,
                 page=page,
-                score=r.get("score") or metadata.get("score"),
+                score=score,
             )
         )
         if len(chunks) >= top_k:
@@ -164,6 +214,9 @@ async def search(query: str, top_k: int | None = None) -> tuple[list[RetrievedCh
         return [], True, int((time.perf_counter() - started) * 1000)
 
     results = payload.get("results", []) if isinstance(payload, dict) else []
+    results = _relevant(results, settings.rag_min_score)
+    # 관련 문서가 하나도 없어도 degraded 가 아니다 — 검색은 정상 동작했고,
+    # 답이 코퍼스에 없을 뿐이다. degraded 는 RAG 호출 자체가 실패했을 때만 쓴다.
     return _to_chunks(results, k), False, int((time.perf_counter() - started) * 1000)
 
 

@@ -6,7 +6,7 @@ from fastapi import APIRouter
 
 from app.config import get_settings
 from app.domain import TOPIC_CATEGORIES, TOPIC_MAX_LEN
-from app.providers.registry import SUPPORTED
+from app.providers.registry import SUPPORTED, is_available
 from app.schemas import (
     ERROR_RESPONSES,
     ChatroomNameRequest,
@@ -61,7 +61,7 @@ async def chatroom_name(req: ChatroomNameRequest) -> ChatroomNameResponse:
 @router.get("/health", response_model=HealthResponse, summary="헬스체크")
 async def health() -> HealthResponse:
     settings = get_settings()
-    providers = {name: settings.is_configured(name) for name in SUPPORTED}
+    providers = {name: is_available(name) for name in SUPPORTED}
     return HealthResponse(
         status="ok" if any(providers.values()) else "degraded",
         providers=providers,

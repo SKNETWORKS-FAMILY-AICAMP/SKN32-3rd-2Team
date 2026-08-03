@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+from app import prompts
 from app.domain import TOPIC_CATEGORIES
 
 # --- 후보 1: catdef — 카테고리에 정의를 붙인다 ---------------------------
@@ -114,6 +115,72 @@ TOPIC_SYSTEM_CATDEF2 = TOPIC_SYSTEM_CATDEF.replace(
 )
 
 
+# --- 후보 4: korean — 언어를 프롬프트 맨 앞에서 못박는다 -------------------
+#
+# Qwen2.5:7b 가 한국어 질문에 **중국어로 답한다.** 34문항 중 4~5건이 새는데,
+# 한 건은 한자 1601자 vs 한글 132자로 사실상 전문이 중국어였다.
+# (OpenAI 는 같은 프롬프트로 0/34. 모델 고유의 성향이다)
+#
+# 운영 프롬프트에도 "한국어 존댓말로" 라는 지시가 답변 규칙 4번에 이미 있다.
+# 무시당한 이유는 그게 **규칙 목록 중간에 묻혀 있어서** 로 보인다. 그래서
+# 맨 앞 단독 문단으로 올리고, 위반 시 무엇을 하라는지까지 적는다.
+# 5건 → 3건. **없애지는 못했다.** 그래서 Qwen 은 답변 생성용으로 못 쓴다는
+# 결론은 그대로다. 다만 비용이 사실상 없고 방향이 맞아 승격했다.
+#
+# 승격됐으므로 이 후보는 `app/prompts.py` 와 같은 값이다. 아래 문자열은
+# 승격 전 문안을 되살리기 위한 **역방향** 정의다 — 지금의 운영 프롬프트에서
+# 지시 문단을 떼어내면 실험 당시의 "지시 없음" 상태가 된다.
+_KOREAN_DIRECTIVE = """**출력 언어: 한국어.**
+질문이 어떤 언어이든, 참고 문서가 어떤 언어이든 답변은 반드시 한국어로 작성합니다.
+중국어·영어·일본어 문장을 쓰지 마세요. 한자는 법령명 병기 등 꼭 필요한 경우에만
+괄호 안에 씁니다.
+
+"""
+
+if not prompts.ANSWER_SYSTEM.startswith(_KOREAN_DIRECTIVE):
+    raise SystemExit(
+        "prompts.ANSWER_SYSTEM 앞의 언어 지시 문단이 바뀌었습니다. "
+        "variants.py 의 _KOREAN_DIRECTIVE 를 맞춰 주세요."
+    )
+
+# 지시 문단을 뗀 상태 = 이 실험의 '개선 전'
+ANSWER_SYSTEM_NO_LANG = prompts.ANSWER_SYSTEM[len(_KOREAN_DIRECTIVE) :]
+
+
+# --- 후보 5: cite-negative — 조문 인용 규칙을 금지형으로 쓴다 --------------
+#
+# 운영 프롬프트(3번 규칙)는 **긍정형 기본값**을 준다.
+#   "출처는 규정 이름까지만 쓰는 것이 기본. 조 번호가 눈에 보일 때만 더하라"
+#
+# 처음에는 금지형으로 썼었다.
+#   "제N조가 실제로 적혀 있을 때만 인용하라. 항·호 번호만 있는 것은 인용이
+#    아니다. '제2항에 명시되어 있습니다' 라고 쓰면 안 된다"
+#
+# 손으로 몇 개 던져 보니 금지형은 "근로기준법 제2항" 같은 형식 오류를 냈고,
+# 긍정형은 "근로기준법 제57조" 처럼 **그럴듯한데 틀린** 조문을 대기도 했다.
+# 후자가 더 위험해 보였지만 표본이 각 1건이라 판단할 수 없었다.
+# 그래서 `bad_citations` 지표를 만들어 35문항으로 비교한다.
+_CITE_NEGATIVE = """3. 조문 번호는 **[참고 문서]에 `제N조` 형태로 실제로 적혀 있을 때만** 인용하세요.
+   기억으로 번호를 붙이면 안 됩니다. 문서가 조문 중간부터 시작해 `제N조`가
+   안 보이면 **번호 없이 내용으로만** 답하세요.
+   `제2항`·`제3호`처럼 항·호 번호만 있는 것은 인용이 아닙니다. 조 번호 없이
+   "제2항에 명시되어 있습니다" 라고 쓰면 안 됩니다.
+   수치와 표현도 문서에 적힌 대로 쓰세요. (문서가 "통상임금의 100분의 50을
+   가산"이라고 하면 그렇게 쓰고, "1.5배" 처럼 바꿔 말하지 마세요)"""
+
+_CITE_POSITIVE_START = "3. 출처를 밝힐 때는"
+_CITE_POSITIVE_END = '"1.5배" 처럼 바꿔 말하지 마세요)'
+
+
+def _swap_rule3(text: str, replacement: str) -> str:
+    start = text.index(_CITE_POSITIVE_START)
+    end = text.index(_CITE_POSITIVE_END, start) + len(_CITE_POSITIVE_END)
+    return text[:start] + replacement + text[end:]
+
+
+ANSWER_SYSTEM_CITE_NEGATIVE = _swap_rule3(prompts.ANSWER_SYSTEM, _CITE_NEGATIVE)
+
+
 # --- v0: 승격 이전의 운영 프롬프트 (박제) ---------------------------------
 #
 # catdef2 를 `app/prompts.py` 로 승격했으므로, 이제 `--variant baseline` 은
@@ -144,6 +211,8 @@ VARIANTS: dict[str, dict[str, str]] = {
     "catdef": {"TOPIC_SYSTEM": TOPIC_SYSTEM_CATDEF},
     "fewshot": {"TOPIC_SYSTEM": TOPIC_SYSTEM_FEWSHOT},
     "catdef2": {"TOPIC_SYSTEM": TOPIC_SYSTEM_CATDEF2},
+    "nolang": {"ANSWER_SYSTEM": ANSWER_SYSTEM_NO_LANG},
+    "cite-negative": {"ANSWER_SYSTEM": ANSWER_SYSTEM_CITE_NEGATIVE},
 }
 
 # 상수 이름 → 그 값을 실제로 쓰는 모듈 경로.
