@@ -35,6 +35,17 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.5-flash"
 
+    # --- Qwen (로컬 오픈소스, Ollama 경유) ---
+    # 상용 API 와의 비교용. 키가 필요 없는 대신 로컬에 Ollama 가 떠 있어야 한다.
+    qwen_base_url: str = "http://localhost:11434"
+    qwen_model: str = "qwen2.5:7b"
+
+    # --- 주제 분류 방법 ---
+    # llm   : 현행. 프로바이더에 enum 제약 호출을 한 번 더 보낸다
+    # embed : 질문 임베딩과 카테고리 임베딩의 유사도로 분류. API 호출 없음
+    topic_method: Literal["llm", "embed"] = "llm"
+    topic_embed_model: str = "jhgan/ko-sroberta-multitask"
+
     # --- RAG ---
     rag_mode: Literal["live", "mock"] = "mock"
     rag_base_url: str = "http://localhost:8001"
@@ -47,6 +58,11 @@ class Settings(BaseSettings):
 
     def is_configured(self, provider: str) -> bool:
         if self.llm_mode == "mock":
+            return True
+        # 로컬 프로바이더는 API 키가 없다. 키 유무로 판단하면 항상 미설정이 된다.
+        from app.providers.registry import KEYLESS
+
+        if provider in KEYLESS:
             return True
         return bool(getattr(self, f"{provider}_api_key", ""))
 
