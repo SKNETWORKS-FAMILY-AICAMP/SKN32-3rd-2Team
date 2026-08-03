@@ -46,10 +46,28 @@ def _is_meaningful_chunk(content: str, *, min_length: int = 80) -> bool:
     return True
 
 
+def _normalize_korean_term(text: str) -> str:
+    if not text:
+        return ""
+
+    cleaned = text.strip().lower()
+    if not cleaned:
+        return ""
+
+    endings = ["은", "는", "이", "가", "을", "를", "의", "에", "에서", "로", "으로", "와", "과", "도", "만"]
+    for ending in endings:
+        if cleaned.endswith(ending) and len(cleaned) > len(ending):
+            cleaned = cleaned[:-len(ending)]
+            break
+
+    return cleaned
+
+
 def _tokenize(text: str) -> List[str]:
     if not text:
         return []
-    return re.findall(r"[가-힣a-zA-Z0-9]+", text.lower())
+    tokens = re.findall(r"[가-힣a-zA-Z0-9]+", text.lower())
+    return [_normalize_korean_term(token) for token in tokens if _normalize_korean_term(token)]
 
 
 def _calculate_bm25_scores(query: str, documents: List[str]) -> List[float]:
