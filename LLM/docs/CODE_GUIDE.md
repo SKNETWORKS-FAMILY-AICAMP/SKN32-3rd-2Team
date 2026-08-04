@@ -47,8 +47,8 @@ LLM/
 │   ├── corpus.py           벤치용 로컬 PDF 검색 (RAG 대역)
 │   └── throttle.py         벤치용 호출 속도 제어
 │
-├── experiments/            ← 곁가지 실험 (운영에 안 쓰임)
-│   └── qwen-sft/           Qwen2.5 파인튜닝 — 채택 보류. 학습·평가 스크립트와 보고서
+├── qwen-sft/               ← 곁가지 실험 (운영에 안 쓰임)
+│                           Qwen2.5 파인튜닝 — 채택 보류. 학습·평가 스크립트와 보고서
 │
 ├── docs/                   문서
 ├── scripts/                보조 도구 (.env.example 드리프트 검사)

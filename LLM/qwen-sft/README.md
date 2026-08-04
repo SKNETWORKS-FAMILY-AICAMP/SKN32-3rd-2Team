@@ -5,7 +5,7 @@
 > (개선 6 · 회귀 4로 상쇄) 응답이 24% 느려졌습니다. 좋아진 지표만 보고 도입하지 않고
 > 재본 뒤 판단한 결과입니다. 근거는 [reports/main35_ollama_comparison.md](reports/main35_ollama_comparison.md).
 >
-> 서비스 쪽 성능 비교표는 [../../docs/PERFORMANCE_REPORT.md](../../docs/PERFORMANCE_REPORT.md) 참조.
+> 서비스 쪽 성능 비교표는 [../docs/PERFORMANCE_REPORT.md](../docs/PERFORMANCE_REPORT.md) 참조.
 
 ## 이 폴더에 없는 것 (재생성 대상)
 
