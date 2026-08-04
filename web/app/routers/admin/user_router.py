@@ -100,12 +100,13 @@ def update_user_api(
 ):
     """사용자 관리 테이블의 행을 클릭하면 뜨는 수정 모달 제출.
     이름/부서명/비밀번호/관리자권한/비활성여부를 변경할 수 있다."""
-    require_admin_api(request)
+    admin = require_admin_api(request)
 
     try:
         update_user_profile(
             db,
             user_id,
+            admin["user_id"],
             name=name,
             department=department,
             passwd=passwd,

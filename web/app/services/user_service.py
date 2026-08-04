@@ -66,6 +66,7 @@ def create_user_by_admin(
 def update_user_profile(
     db: Session,
     user_id: str,
+    current_admin_id: str,
     name: str | None = None,
     department: str | None = None,
     passwd: str | None = None,
@@ -73,7 +74,18 @@ def update_user_profile(
     is_disabled: bool | None = None,
 ) -> User:
     """사용자 관리 화면의 수정 모달: 이름 / 부서명 / 비밀번호 / 관리자권한 / 비활성여부를 수정한다.
-    (user_id는 이 경로로 변경할 수 없다)"""
+    (user_id는 이 경로로 변경할 수 없다)
+
+    본인 계정을 수정하는 경우, 관리자 권한 해제와 비활성화는 막는다 - 안 막으면
+    관리자가 실수로(또는 실험 삼아) 자기 계정을 강등/비활성화해서 관리 기능에
+    아무도 접근 못 하게 잠겨버릴 수 있다. 이름/부서/비밀번호 변경은 본인 계정이어도
+    그대로 허용한다."""
+
+    if user_id == current_admin_id:
+        if is_admin is False:
+            raise UserServiceError("본인 계정의 관리자 권한은 해제할 수 없습니다.")
+        if is_disabled is True:
+            raise UserServiceError("본인 계정은 비활성화할 수 없습니다.")
 
     user = _get_active_user_or_404(db, user_id)
 
