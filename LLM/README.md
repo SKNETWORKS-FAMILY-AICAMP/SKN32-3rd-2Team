@@ -18,6 +18,7 @@
 | [docs/RAG_FEEDBACK.md](docs/RAG_FEEDBACK.md) | 연동하며 발견한 사항 → RAG 파트 |
 | [docs/WEB_INTEGRATION_REPORT.md](docs/WEB_INTEGRATION_REPORT.md) | WEB 연동 확인 결과 |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | 08/03 오전 기준 검토 기록 (낡음, 이력용) |
+| [experiments/qwen-sft/](experiments/qwen-sft/) | Qwen2.5 파인튜닝 실험 — **채택 보류**, 근거와 재현 절차 |
 
 ---
 
@@ -97,14 +98,20 @@ Qwen 을 왜 넣었는지와 실측 성능은 [docs/PERFORMANCE_REPORT.md](docs/
 | 키 | 기본값 | 설명 |
 |---|---|---|
 | `LLM_MODE` | `live` | `mock` 이면 LLM API 호출 없이 고정 응답 |
-| `DEFAULT_PROVIDER` | `openai` | `openai` \| `gemini`. 요청별로 덮어쓸 수 있음 |
+| `DEFAULT_PROVIDER` | `openai` | `openai` \| `gemini` \| `qwen` |
 | `LLM_TIMEOUT_SEC` | `5.0` | 초과 시 504 + 한국어 안내 (스토리보드 13p 요구사항) |
+| `ANSWER_MAX_TOKENS` | `500` | 답변 길이 상한. 프롬프트 지시를 안 지키는 모델 대비 |
+| `ANSWER_CITE_ARTICLES` | `false` | 답변에 조문 번호를 넣을지. 현재 RAG 구성에서는 끈다 |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` | — / `gpt-4o-mini` | |
 | `GEMINI_API_KEY` / `GEMINI_MODEL` | — / `gemini-3.5-flash` | |
+| `QWEN_BASE_URL` / `QWEN_MODEL` | `localhost:11434` / `qwen2.5:7b` | Ollama. 없어도 서비스는 정상 동작 |
 | `RAG_MODE` | `mock` | `live` 면 실제 RAG 서비스 호출 |
 | `RAG_BASE_URL` | `http://localhost:8001` | |
 | `RAG_TIMEOUT_SEC` / `RAG_TOP_K` | `3.0` / `5` | |
+| `RAG_MIN_SCORE` | `0.01` | 관련도가 이 값 미만인 검색 결과는 버린다 |
 | `METRICS_ENABLED` / `METRICS_PATH` | `true` / `logs/metrics.jsonl` | 계측 로그. 성능 보고서 입력 |
+
+전체 목록과 각 값을 정한 이유는 [.env.example](.env.example) 과 `app/config.py` 주석에 있다.
 
 `.env` 는 `.gitignore` 에 있으므로 **API 키가 커밋될 일은 없다.**
 
@@ -119,18 +126,27 @@ python scripts/check_env_example.py
 ## 폴더 구조
 
 ```
-app/
-├── main.py              FastAPI 앱, 예외 → 에러 규약 변환
-├── config.py            .env 로딩
-├── domain.py            ★ TOPIC_CATEGORIES — 카테고리 바꿀 땐 여기만
-├── schemas.py           API 계약의 단일 출처
-├── prompts.py           시스템 프롬프트 (튜닝은 여기서만)
-├── errors.py            한국어 메시지를 담은 예외
-├── metrics.py           지연/토큰 JSONL 기록
-├── routers/             chat.py, meta.py
-├── providers/           base(Protocol) / openai / gemini / mock / registry
-└── services/            rag_client, answer, topic, naming
+app/                 서비스 (운영에 실제로 도는 코드)
+├── main.py          FastAPI 앱, 예외 → 에러 규약 변환
+├── config.py        .env 로딩
+├── domain.py        ★ TOPIC_CATEGORIES — 카테고리 바꿀 땐 여기만
+├── schemas.py       API 계약의 단일 출처
+├── prompts.py       시스템 프롬프트 (튜닝은 여기서만)
+├── errors.py        한국어 메시지를 담은 예외
+├── metrics.py       지연/토큰 JSONL 기록
+├── routers/         chat.py, meta.py
+├── providers/       base / openai / gemini / qwen / mock / registry
+└── services/        rag_client, answer, topic, naming
+
+bench/               측정 도구 (운영에 안 쓰임)
+experiments/qwen-sft/  Qwen 파인튜닝 실험 — 채택 보류
+docs/                문서
+scripts/             .env.example 드리프트 검사
+local/               로컬 실행 스크립트 (git 미포함)
+logs/                계측 로그 (git 미포함)
 ```
+
+각 파일이 하는 일과 요청이 흐르는 순서는 [docs/CODE_GUIDE.md](docs/CODE_GUIDE.md) 참조.
 
 ---
 
@@ -193,7 +209,8 @@ app/
 | 키 미설정 → `503 PROVIDER_NOT_CONFIGURED`, `/health degraded` | ✅ |
 | 스키마 위반 → `422 INVALID_REQUEST` | ✅ |
 
-**실제 LLM API 호출(live 모드)은 아직 검증 전** — API 키가 필요하다.
+위 표는 `LLM_MODE=mock` 기준이다. **실제 호출과 실제 RAG 연동까지 검증을 마쳤고**,
+35문항 측정 결과는 [docs/PERFORMANCE_REPORT.md](docs/PERFORMANCE_REPORT.md) 에 있다.
 
 ---
 
@@ -206,7 +223,7 @@ app/
 
 남은 것:
 
-- [ ] Qwen 파인튜닝 모델 비교 (RunPod 학습 진행 중)
+- [x] Qwen 파인튜닝 모델 비교 — [experiments/qwen-sft/](experiments/qwen-sft/) · **채택 보류**
 - [ ] 스트리밍(`/v1/chat/stream`) TTFT 측정 — 비스트리밍이 기본 경로라 후순위
 - [ ] 다른 파트에 전달한 사항 반영 확인 — [docs/RAG_FEEDBACK.md](docs/RAG_FEEDBACK.md) 6건,
       WEB 의 `admin_stats.js` 카테고리 색상표 8종 갱신
