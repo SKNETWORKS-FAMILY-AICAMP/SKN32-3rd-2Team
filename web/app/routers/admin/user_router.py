@@ -5,9 +5,9 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from ..auth import require_admin, require_admin_api
-from ..database import get_db
-from ..services.user_service import (
+from ...core.security import require_admin, require_admin_api
+from ...core.database import get_db
+from ...services.user_service import (
     UserServiceError,
     create_user_by_admin,
     delete_user_by_admin,
@@ -20,7 +20,8 @@ router = APIRouter(
     tags=["Admin Users"],
 )
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# main.py와 동일한 절대경로 기준으로 템플릿을 로드한다.
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 

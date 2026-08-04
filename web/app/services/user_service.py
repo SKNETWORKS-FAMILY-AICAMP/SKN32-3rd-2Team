@@ -3,7 +3,7 @@ import re
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
-from ..auth import hash_password
+from ..core.security import hash_password
 from ..models import User, UserLoginHistory
 
 MAX_PAGE_SIZE = 100

@@ -5,9 +5,9 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from ..auth import require_login, require_login_api
-from ..database import get_db
-from ..services.chat_service import (
+from ...core.security import require_login, require_login_api
+from ...core.database import get_db
+from ...services.chat_service import (
     ChatServiceError,
     create_chatroom,
     delete_chatroom,
@@ -22,7 +22,7 @@ router = APIRouter(
     tags=["Chat"],
 )
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 
@@ -108,7 +108,7 @@ def chat_page(request: Request, chatroom_id: str | None = None, db: Session = De
 
     return templates.TemplateResponse(
         request,
-        "chat.html",
+        "chat/chat.html",
         {
             "user": user,
             "active": "chat_list" if chatroom_id else "chat_new",

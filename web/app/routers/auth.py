@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from .auth import (
+from ..core.security import (
     clear_session,
     create_session,
     get_current_user,
@@ -14,14 +14,14 @@ from .auth import (
     post_login_redirect_url,
     verify_password,
 )
-from .database import get_db
-from .models import User
-from .services.user_service import record_login
+from ..core.database import get_db
+from ..models import User
+from ..services.user_service import record_login
 
 router = APIRouter(tags=["Auth"])
 
 # main.py와 동일한 절대경로 기준으로 템플릿을 로드한다.
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 USER_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{4,20}$")

@@ -5,19 +5,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from .auth import SESSION_MAX_AGE_SECONDS, post_login_redirect_url, require_login
-from .auth_router import router as auth_router
-from .database import warm_up as warm_up_db
-from app.admin.stats_router import router as stats_router
-from app.admin.user_router import router as users_router
-from app.admin.document_router import router as documents_router
-from app.chat.chat_router import router as chat_router
-from app.services.llm_client import ChatAPIError, warm_up as warm_up_chat_api
+from .core.database import warm_up as warm_up_db
+from .core.security import SESSION_MAX_AGE_SECONDS
+from .routers.pages import router as pages_router
+from .routers.auth import router as auth_router
+from .routers.admin.user_router import router as users_router
+from .routers.admin.document_router import router as documents_router
+from .routers.admin.stats_router import router as stats_router
+from .routers.chat.chat_router import router as chat_router
+from .services.llm_client import ChatAPIError, warm_up as warm_up_chat_api
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -45,9 +45,9 @@ app = FastAPI(title="RAG 챗봇", lifespan=lifespan)
 # 쿠키 max_age는 실제 세션 만료 시간(SESSION_MAX_AGE_SECONDS, 3시간)보다 길게 설정한다.
 # 동일하게 설정하면 세션 만료 시 브라우저가 쿠키를 제거하여,
 # "세션 만료"와 "로그인 이력 없음"을 구분할 수 없게 된다.
-# (auth.py의 _had_session_cookie에서 구분 용도로 사용)
+# (core/security.py의 _had_session_cookie에서 구분 용도로 사용)
 #
-# 실제 인증 유효성은 auth.py에서 세션의 login_at 기준으로 판단하므로,
+# 실제 인증 유효성은 core/security.py에서 세션의 login_at 기준으로 판단하므로,
 # 쿠키 수명을 늘려도 로그인 유지 시간이 늘어나지는 않는다.
 SESSION_COOKIE_MAX_AGE_SECONDS = SESSION_MAX_AGE_SECONDS + 7 * 24 * 60 * 60  # 세션 유효시간 + 7일 여유
 
@@ -59,20 +59,9 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+app.include_router(pages_router)
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(stats_router)
 app.include_router(documents_router)
 app.include_router(chat_router)
-
-
-@app.get("/", response_class=HTMLResponse)
-def root(request: Request):
-    """로그인 안 됐으면 로그인 화면으로,
-    로그인 됐으면 관리자는 /admin/stats로,
-    일반 유저는 /chat으로 보낸다."""
-    user, redirect = require_login(request)
-    if redirect:
-        return redirect
-
-    return RedirectResponse(url=post_login_redirect_url(user.get("is_admin")), status_code=303)

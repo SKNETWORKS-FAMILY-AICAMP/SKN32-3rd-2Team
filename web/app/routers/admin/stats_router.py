@@ -5,9 +5,9 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from ..auth import require_admin, require_admin_api
-from ..database import get_db
-from ..services.stats_service import (
+from ...core.security import require_admin, require_admin_api
+from ...core.database import get_db
+from ...services.stats_service import (
     get_category_ratio,
     get_daily_trend,
     get_faq_top10,
@@ -19,7 +19,7 @@ router = APIRouter(
     tags=["Admin Stats"],
 )
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 
