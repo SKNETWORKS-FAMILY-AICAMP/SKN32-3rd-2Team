@@ -52,8 +52,8 @@
 스냅샷합니다. 이 파일은 학습 데이터 생성 재료로 사용하면 안 됩니다.
 
 ```powershell
-cd C:\LLM_workspace\qwen_hr_sft_experiment
-python export_holdout.py --team-root "C:\Dev_Tools\other_team_project\SKN32-3rd-2Team"
+cd <저장소>\LLM\qwen-sft
+python export_holdout.py --team-root ..\..
 python export_source_inventory.py
 python -m pytest -q
 ```
@@ -73,7 +73,7 @@ Pod 생성값과 생성 후 알려줘야 할 정보는 [RUNPOD.md](RUNPOD.md)에
 학습 명령은 다음 순서입니다.
 
 ```bash
-cd /workspace/qwen_hr_sft_experiment
+cd /workspace/qwen-sft
 cp .env.example .env
 python -m pip install -r requirements.txt
 python check_environment.py

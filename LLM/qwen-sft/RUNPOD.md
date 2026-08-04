@@ -52,12 +52,12 @@ Qwen2.5-7B-Instruct는 공개 모델이라 `HF_TOKEN` 없이 다운로드할 수
 2. Git을 쓰지 않으면 `runpodctl`로 폴더 전송
 3. SSH/SCP 전송
 
-전송 후 경로 예시는 `/workspace/qwen_hr_sft_experiment`입니다.
+전송 후 경로 예시는 `/workspace/qwen-sft`입니다.
 
 ## 설치 및 검사
 
 ```bash
-cd /workspace/qwen_hr_sft_experiment
+cd /workspace/qwen-sft
 cp .env.example .env
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt

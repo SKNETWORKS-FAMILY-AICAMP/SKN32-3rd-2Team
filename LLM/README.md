@@ -365,7 +365,86 @@ python bench/trace_claim.py --tag e2e     # 근거 없는 문장이 코퍼스에
 | 습관적 "인사팀 문의" 제거 | **83% → 3%** |
 | 관련도 미달 결과 버림 | 근거 없이 답하는 일 없음 |
 
-# 7단계. 운영 시 주의사항
+# 7단계. Qwen 파인튜닝 실험 재현하기
+
+위 비교표의 마지막 줄(`Qwen HR 파인튜닝`)을 직접 만들어 보려면
+[qwen-sft/](qwen-sft/) 폴더의 [README](qwen-sft/README.md) 를 따라가면 됩니다.
+
+**이 실험은 운영에 채택하지 않았습니다.** 언어 이탈(6건→0건)과 주제 분류(33→35/35)는
+해결됐지만 사실성이 17/35 에 그치고(개선 6 · 회귀 4로 상쇄) 응답이 24% 느려졌습니다.
+근거는 [qwen-sft/reports/main35_ollama_comparison.md](qwen-sft/reports/main35_ollama_comparison.md).
+
+## 7.1 전체 흐름
+
+```text
+공식 HR PDF → 사람 검수 후보 100건 → 누수·PII 검사 → 7B QLoRA SFT
+           → 같은 장비에서 Base/SFT 비교 → 블라인드 근거 검수
+           → 통과 시에만 GGUF 변환 후 Ollama 평가
+```
+
+## 7.2 필요한 것
+
+| 항목 | 값 |
+|---|---|
+| GPU | 학습은 A40 48GB 이상 권장 (RunPod). 추론만 하려면 8GB 로도 가능 |
+| 모델 | `Qwen/Qwen2.5-7B-Instruct` (commit 고정) |
+| 방식 | 4-bit NF4 QLoRA, LoRA rank 16 |
+| 데이터 | 검수 승인 100건 (train 80 / valid 20) — `data/candidates.jsonl` 에 포함 |
+
+## 7.3 학습부터 평가까지
+
+```bash
+cd qwen-sft
+cp .env.example .env
+python -m pip install -r requirements.txt
+
+python check_environment.py        # GPU·CUDA·패키지 확인
+python -m pytest -q                # 데이터 무결성 검사
+python prepare_dataset.py          # candidates.jsonl → train/valid 분할
+python train_qlora.py              # QLoRA 학습 → outputs/
+
+python evaluate.py --variant base  # 기준선
+python evaluate.py --variant sft    # 학습 모델
+python evaluate_topic.py --variant base
+python evaluate_topic.py --variant sft
+python compare_results.py          # → reports/comparison.md
+```
+
+## 7.4 이 저장소의 벤치로 재검증
+
+학습이 끝나 Ollama 에 올렸다면, **본 서비스의 35문항 벤치**로 다시 잴 수 있습니다.
+`qwen-sft/` 자체 평가와 달리 실제 서비스 경로(`generate_answer`)를 그대로 탑니다.
+
+```bash
+cd ..
+python bench/run_bench.py --provider qwen --model qwen2.5-hr-sft:bench \
+    --retrieval corpus --tag main35-sft-qwen
+python bench/report.py
+```
+
+## 7.5 폴더에 없는 것
+
+용량이 커서 git 에 올리지 않았습니다. 위 절차로 다시 만들 수 있습니다.
+
+| 항목 | 크기 | 다시 만드는 법 |
+|---|---|---|
+| `outputs/` LoRA 어댑터 | 170MB | `train_qlora.py` |
+| `tools/llama.cpp` | 201MB | `git clone` |
+| `venv_convert/` | 168MB | `requirements.txt` |
+| `ollama/*.gguf` | 78MB | llama.cpp 변환 (`ollama/build_manifest.json` 에 절차 기록) |
+| `data/holdout.jsonl`, `corpus_cache.json` | 1.5MB | `export_holdout.py` |
+
+## 7.6 채택 기준
+
+실험 README 에 적어둔 게이트입니다. **사실성에서 통과하지 못했습니다.**
+
+- 한국어 외 문장 혼입 0건 ✅ (6건 → 0건)
+- 빈 답변·생성 오류 0건 ✅
+- 문서에 없는 숫자·조문·절차 생성 0건 ❌ **(사실성 17/35)**
+- 주제 분류가 기준선 아래로 하락하지 않음 ✅ (33 → 35/35)
+- Ollama 동일 하드웨어에서 p95 5초 이하 ❌ **(17.3초)**
+
+# 8단계. 운영 시 주의사항
 
 - **API 키를 커밋하지 않습니다.** `.env` 는 `.gitignore` 에 있습니다
 - **RAG 가 주는 `metadata.source` 는 절대경로**라 그대로 화면에 뿌리면 담당자 PC
@@ -378,7 +457,7 @@ python bench/trace_claim.py --tag e2e     # 근거 없는 문장이 코퍼스에
 - Gemini 무료 티어는 **하루 20회** 제한이라 전체 측정이 불가능합니다.
   한도가 모델별로 잡히므로 여유 있는 모델로 바꿔 재야 합니다
 
-# 8단계. 검증 완료 항목
+# 9단계. 검증 완료 항목
 
 | 항목 | 결과 |
 |---|---|
@@ -393,9 +472,3 @@ python bench/trace_claim.py --tag e2e     # 근거 없는 문장이 코퍼스에
 | 키 미설정 → `503 PROVIDER_NOT_CONFIGURED` | ✅ |
 | Ollama 없이 기동 → `/health` 가 `qwen: false` | ✅ |
 | 실제 RAG 연동 end-to-end 35문항 | ✅ 에러 0건 |
-
-# 9단계. 남은 작업
-
-- [ ] 스트리밍(`/v1/chat/stream`) TTFT 측정 — 비스트리밍이 기본 경로라 후순위
-- [ ] 다른 파트 전달사항 반영 확인 — [docs/RAG_FEEDBACK.md](docs/RAG_FEEDBACK.md) 6건
-- [ ] 답변 provider 와 topic provider 분리 — 주제 분류를 로컬 모델로 넘기면 비용 18% 절감
