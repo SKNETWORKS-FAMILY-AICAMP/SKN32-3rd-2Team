@@ -28,7 +28,7 @@ meta:
     - 채용/임용
     - 인사/승진
     - 복리후생
-    - 복무/징계
+    - 징계/행동강령
     - 기타
   corpus: RAG/res/pdf   # 정답 문서명의 출처
 
@@ -221,27 +221,27 @@ questions:
     category: 복리후생
     sources: ["교직원특수병치료비지원지침.pdf"]
 
-  # ─────────────── 복무/징계 ───────────────
+  # ─────────────── 징계/행동강령 ───────────────
   - id: disc-dui-a
     group: dui
     question: 음주운전을 하면 어떤 처분을 받나요?
-    category: 복무/징계
+    category: 징계/행동강령
     sources: ["교직원 음주운전 비위행위 확인에 관한 지침.pdf"]
 
   - id: disc-dui-b
     group: dui
     question: 직원이 음주운전으로 적발되면 징계 기준이 어떻게 되나요?
-    category: 복무/징계
+    category: 징계/행동강령
     sources: ["교직원 음주운전 비위행위 확인에 관한 지침.pdf"]
 
   - id: disc-code-of-conduct
     question: 교직원 행동강령에서 금지하는 행위는 무엇인가요?
-    category: 복무/징계
+    category: 징계/행동강령
     sources: ["한국기술교육대학교 교직원행동강령.pdf"]
 
   - id: disc-crime-report
     question: 직무 관련 범죄를 알게 되면 어떻게 신고하나요?
-    category: 복무/징계
+    category: 징계/행동강령
     sources: ["한국기술교육대학교 직무범죄고발지침.pdf"]
 
   # ─────────────── 기타 / 범위 밖 ───────────────
