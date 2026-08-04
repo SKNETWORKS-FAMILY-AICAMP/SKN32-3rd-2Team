@@ -30,13 +30,13 @@
       showAdminStatus: false, showSignupHint: true,
     },
     create: {
-      title: "유저 추가", submitLabel: "추가하기",
+      title: "사용자 추가", submitLabel: "추가하기",
       action: "/admin/users/api/create", method: "POST",
       userIdEditable: true, showPasswdConfirm: true, passwdRequired: true,
       showAdminStatus: true, showSignupHint: false,
     },
     edit: {
-      title: "유저 정보 수정", submitLabel: "저장",
+      title: "사용자 정보 수정", submitLabel: "저장",
       action: null, method: "PATCH",
       userIdEditable: false, showPasswdConfirm: false, passwdRequired: false,
       showAdminStatus: true, showSignupHint: false,
@@ -76,7 +76,7 @@
     isAdminInput.checked = !!prefill.isAdmin;
     isDisabledInput.checked = !!prefill.isDisabled;
 
-    // 이용/채팅 내역 분석 안내는 '회원가입'에서만 노출 (유저관리 쪽 추가/수정에는 안 보임)
+    // 이용/채팅 내역 분석 안내는 '회원가입'에서만 노출 (사용자 관리 쪽 추가/수정에는 안 보임)
     signupHintField.classList.toggle("hidden", !config.showSignupHint);
 
     // 계정 삭제는 수정 모드에서만, 대상 아이디를 버튼에 기억해둔다

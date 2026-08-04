@@ -5,9 +5,9 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from ..auth import require_login, require_login_api
-from ..database import get_db
-from ..services.chat_service import (
+from ...core.security import require_login, require_login_api
+from ...core.database import get_db
+from ...services.chat_service import (
     ChatServiceError,
     create_chatroom,
     delete_chatroom,
@@ -22,7 +22,7 @@ router = APIRouter(
     tags=["Chat"],
 )
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 
@@ -86,24 +86,33 @@ def delete_room_api(request: Request, chatroom_id: str, db: Session = Depends(ge
     return {"detail": "삭제되었습니다."}
 
 
+@router.get("", response_class=HTMLResponse)
 @router.get("/{chatroom_id}", response_class=HTMLResponse)
-def chat_page(request: Request, chatroom_id: str, db: Session = Depends(get_db)):
+def chat_page(request: Request, chatroom_id: str | None = None, db: Session = Depends(get_db)):
+    """방 ID가 없으면(=/chat) 새 대화를 시작할 수 있는 빈 상태로 렌더링하고,
+    방 ID가 있으면(=/chat/{chatroom_id}) 그 대화 내용을 이어서 보여준다.
+    실제 채팅방(chatroom row)은 이 페이지 진입 시점이 아니라, 첫 메시지를 보낼 때
+    (POST /chat/api/rooms/{chatroom_id}/messages 이전에 방 생성이 선행) 만들어진다."""
     user, redirect = require_login(request)
     if redirect:
         return redirect
 
-    try:
-        chatroom = get_owned_chatroom(db, chatroom_id, user["user_id"])
-    except ChatServiceError:
-        return RedirectResponse(url="/main", status_code=303)
+    chatroom_name = "새 대화"
+
+    if chatroom_id:
+        try:
+            chatroom = get_owned_chatroom(db, chatroom_id, user["user_id"])
+        except ChatServiceError:
+            return RedirectResponse(url="/chat", status_code=303)
+        chatroom_name = chatroom.chatroom_name
 
     return templates.TemplateResponse(
         request,
-        "chat.html",
+        "chat/chat.html",
         {
             "user": user,
-            "active": "chat_list",
-            "chatroom_id": chatroom.chatroom_id,
-            "chatroom_name": chatroom.chatroom_name,
+            "active": "chat_list" if chatroom_id else "chat_new",
+            "chatroom_id": chatroom_id or "",
+            "chatroom_name": chatroom_name,
         },
     )

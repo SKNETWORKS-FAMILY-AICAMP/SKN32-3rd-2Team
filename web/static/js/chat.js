@@ -38,6 +38,7 @@ document.addEventListener("DOMContentLoaded", function () {
         chatroomId = room.chatroom_id;
         page.dataset.chatroomId = chatroomId;
         window.history.replaceState(null, "", `/chat/${chatroomId}`);
+        activateChatroom(chatroomId);
       }
 
       const typingEl = appendMessage("llm", "…", true);
@@ -70,13 +71,22 @@ document.addEventListener("DOMContentLoaded", function () {
     return res.json();
   }
 
+  function activateChatroom(id) {
+    document.querySelectorAll(".app-sidebar .nav-item.active").forEach(el => el.classList.remove("active"));
+
+    const list = document.getElementById("chatroom-list");
+    if (list) list.dataset.activeId = id;
+
+    if (window.loadChatroomList) window.loadChatroomList();
+  }
+
   async function loadMessages(id) {
     const res = await fetch(`/chat/api/rooms/${id}/messages`);
     if (!res.ok) return;
 
     const data = await res.json();
     messagesEl.innerHTML = "";
-    data.items.forEach(m => appendMessage(m.speaker, m.message));
+    data.items.forEach(m => appendMessage(m.speaker, m.message, false, m.sources));
   }
 
   function formatSource(source) {
@@ -85,20 +95,39 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function appendMessage(speaker, text, isTyping, sources, ragDegraded) {
-    const el = document.createElement("div");
-    el.className = `chat-message ${speaker}` + (isTyping ? " typing" : "");
-    el.textContent = text;
+    const wrap = document.createElement("div");
+    wrap.className = `chat-turn ${speaker}`;
 
-    if (speaker === "llm" && sources && sources.length) {
-      el.classList.add("has-sources");
-      el.title = "근거 문서\n" + sources.map(formatSource).join("\n");
-    } else if (speaker === "llm" && ragDegraded) {
-      el.classList.add("has-sources");
-      el.title = "근거 문서를 찾지 못했습니다.";
+    const bubble = document.createElement("div");
+    bubble.className = `chat-message ${speaker}` + (isTyping ? " typing" : "");
+    bubble.textContent = text;
+    wrap.appendChild(bubble);
+
+    if (speaker === "llm" && !isTyping && ((sources && sources.length) || ragDegraded)) {
+      const src = document.createElement("div");
+      const icon = document.createElement("span");
+      const label = document.createElement("span");
+      icon.className = "chat-sources-icon";
+      label.className = "chat-sources-text";
+
+      if (sources && sources.length && !ragDegraded) {
+        src.className = "chat-sources";
+        icon.textContent = "📄";
+        label.textContent = `근거 문서 ${sources.length}건 · ${sources.map(formatSource).join(", ")}`;
+        src.title = "근거 문서\n" + sources.map(formatSource).join("\n");
+      } else {
+        src.className = "chat-sources degraded";
+        icon.textContent = "⚠️";
+        label.textContent = "근거 문서를 찾지 못했습니다";
+      }
+
+      src.appendChild(icon);
+      src.appendChild(label);
+      wrap.appendChild(src);
     }
 
-    messagesEl.appendChild(el);
+    messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
-    return el;
+    return wrap;
   }
 });

@@ -6,21 +6,22 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from .auth import (
+from ..core.security import (
     clear_session,
     create_session,
     get_current_user,
     hash_password,
+    post_login_redirect_url,
     verify_password,
 )
-from .database import get_db
-from .models import User
-from .services.user_service import record_login
+from ..core.database import get_db
+from ..models import User
+from ..services.user_service import record_login
 
 router = APIRouter(tags=["Auth"])
 
 # main.py와 동일한 절대경로 기준으로 템플릿을 로드한다.
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 USER_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{4,20}$")
@@ -30,7 +31,7 @@ USER_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{4,20}$")
 def login_page(request: Request):
     user = get_current_user(request)
     if user:
-        return RedirectResponse(url="/main", status_code=303)
+        return RedirectResponse(url=post_login_redirect_url(user.get("is_admin")), status_code=303)
     return templates.TemplateResponse(request, "login.html", {"error": None})
 
 
@@ -61,12 +62,12 @@ def login_submit(
 
     create_session(request, user.user_id, user.name, user.is_admin)
     record_login(db, user.user_id)
-    return RedirectResponse(url="/main", status_code=303)
+    return RedirectResponse(url=post_login_redirect_url(user.is_admin), status_code=303)
 
 
 @router.get("/auth/check-user-id")
 def check_user_id(user_id: str, db: Session = Depends(get_db)):
-    """회원가입/유저추가 모달의 '중복확인' 버튼이 호출하는 엔드포인트."""
+    """회원가입/사용자추가 모달의 '중복확인' 버튼이 호출하는 엔드포인트."""
     if not USER_ID_PATTERN.match(user_id):
         return JSONResponse(
             status_code=400,

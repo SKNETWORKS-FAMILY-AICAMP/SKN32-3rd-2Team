@@ -6,8 +6,8 @@
 > 이 문서는 **LLM 서비스가 제공하는** API입니다.
 > 제가 RAG 담당자에게 **요청드리는** 명세는 → [RAG_REQUIRED_API.md](RAG_REQUIRED_API.md)
 
-- **Base URL**: `http://localhost:8001`
-- **Swagger (자동 생성, 항상 최신)**: `http://localhost:8001/docs`
+- **Base URL**: `http://localhost:8002`
+- **Swagger (자동 생성, 항상 최신)**: `http://localhost:8002/docs`
 - 모든 요청/응답 `Content-Type: application/json`, 인코딩 UTF-8
 
 ## 목차
@@ -43,7 +43,7 @@
 ## 0. 이 서비스의 위치
 
 ```
-웹 프론트엔드 → 챗봇 서버(8000) → [LLM 서비스(8001)] → RAG 서비스(8002)
+웹 프론트엔드 → 챗봇 서버(8000) → [LLM 서비스(8002)] → RAG 서비스(8001)
                       ↓
                      MySQL
 ```
@@ -293,7 +293,8 @@ if (!res.ok) showError(body.message);
 | HTTP | `error_code` | 실제 `message` | 언제 |
 |---|---|---|---|
 | 504 | `LLM_TIMEOUT` | 일시적인 오류입니다. 잠시 후 다시 시도해주세요. | 생성이 5초 초과 (스토리보드 13p 대응) |
-| 503 | `LLM_UNAVAILABLE` | AI 응답 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요. | OpenAI/Gemini 장애·쿼터 초과·인증 실패 |
+| **429** | **`LLM_RATE_LIMITED`** | 요청이 많아 잠시 후 다시 시도해주세요. | 벤더 API 호출 한도 초과. **`Retry-After` 헤더**에 대기 초가 옵니다 |
+| 503 | `LLM_UNAVAILABLE` | AI 응답 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요. | OpenAI/Gemini 장애·인증 실패 |
 | 503 | `PROVIDER_NOT_CONFIGURED` | AI 응답 서비스가 아직 설정되지 않았습니다. 관리자에게 문의해주세요. | 서버에 API 키 미설정 |
 | 422 | `INVALID_REQUEST` | 요청 형식이 올바르지 않습니다. | `chatroom_id` 나 `message` 누락 등 |
 | 500 | `INTERNAL_ERROR` | 일시적인 오류입니다. 잠시 후 다시 시도해주세요. | 위에 해당하지 않는 예상 밖 오류 |
@@ -302,6 +303,15 @@ if (!res.ok) showError(body.message);
 
 `error_code` 로 분기하고 싶다면 `LLM_TIMEOUT` 정도만 따로 처리하면 충분합니다
 (예: 재시도 버튼 노출). 나머지는 `message` 를 그대로 띄우면 됩니다.
+
+> **`LLM_RATE_LIMITED` 는 '기다리면 풀리는' 실패**라 다른 에러와 성격이 다릅니다.
+> 서버가 대신 기다려주지는 않습니다 — 벤더가 권하는 대기 시간이 보통 30초 이상이라
+> 요청 타임아웃(5초) 안에 처리할 수 없고, 사용자를 30초 붙잡는 것보다 바로 알리는 편이 낫습니다.
+> 자동 재시도를 붙이고 싶으면 `Retry-After` 헤더의 초만큼 쉬었다 보내주세요.
+>
+> 기본 프로바이더인 OpenAI 는 한도가 넉넉해 실사용에서 보기 어렵습니다.
+> Gemini 무료 티어가 **분당 20회** 로 빡빡한데, `/v1/chat` 한 번이 답변 생성과 주제 분류로
+> 프로바이더를 **2회** 호출하므로 실질 한도는 분당 10요청입니다.
 
 **RAG 실패는 에러가 아닙니다.** `200` + `rag_degraded: true` + `sources: []` 로 내려갑니다.
 
@@ -366,8 +376,8 @@ cd LLM
 python -m venv .venv && .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env      # API 키 채우기
-uvicorn app.main:app --reload --port 8001
+uvicorn app.main:app --reload --port 8002
 ```
 
-`http://localhost:8001/docs` 에서 바로 눌러볼 수 있습니다.
+`http://localhost:8002/docs` 에서 바로 눌러볼 수 있습니다.
 API 키가 아직 없으면 `.env` 에 `LLM_MODE=mock` 을 넣으면 고정 응답으로 화면을 붙여볼 수 있습니다. **응답 형식은 실제와 동일합니다.**

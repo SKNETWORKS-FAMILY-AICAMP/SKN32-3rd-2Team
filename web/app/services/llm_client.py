@@ -11,10 +11,8 @@ error_code는 아래 5개가 전부이며, message는 그대로 화면에 출력
 """
 
 import atexit
-import logging
 import os
 import threading
-import time
 
 import httpx
 
@@ -25,16 +23,10 @@ _READ_TIMEOUT = float(os.getenv("CHAT_API_TIMEOUT_SECONDS", "15"))
 
 _DEFAULT_MESSAGE = "일시적인 오류입니다. 잠시 후 다시 시도해주세요."
 
-logger = logging.getLogger("chat_timing")
-if not logger.handlers:
-    _handler = logging.StreamHandler()
-    _handler.setFormatter(logging.Formatter("%(message)s"))
-    logger.addHandler(_handler)
-    logger.setLevel(logging.INFO)
-    logger.propagate = False
-
 
 class ChatAPIError(Exception):
+    """Chat API 호출 실패. message는 프론트에 그대로 노출해도 되는 한국어 문구다."""
+
     def __init__(self, message: str, status_code: int = 500, error_code: str = "INTERNAL_ERROR"):
         super().__init__(message)
         self.message = message
@@ -50,6 +42,7 @@ def _client() -> httpx.Client:
     global _client_instance
 
     if not CHAT_API_BASE_URL:
+        # 서버 설정 문제이므로, 명세의 PROVIDER_NOT_CONFIGURED와 동일한 취급을 한다.
         raise ChatAPIError(
             "AI 응답 서비스가 아직 설정되지 않았습니다. 관리자에게 문의해주세요.",
             status_code=503,
@@ -58,18 +51,15 @@ def _client() -> httpx.Client:
 
     if _client_instance is None:
         with _client_lock:
-            if _client_instance is None:
-                t_init = time.perf_counter()
+            if _client_instance is None:  # double-checked locking: 락 대기 중 이미 만들어졌을 수 있음
                 _client_instance = httpx.Client(
                     base_url=CHAT_API_BASE_URL,
                     timeout=httpx.Timeout(
                         connect=_CONNECT_TIMEOUT, read=_READ_TIMEOUT, write=_READ_TIMEOUT, pool=_READ_TIMEOUT
                     ),
+                    # 로컬/사내망의 지정된 서버만 호출하므로 OS 프록시 자동감지가 필요 없다.
+                    # trust_env=True(기본값)로 두면 환경에 따라 초기화가 느려지는 경우가 있어 꺼둔다.
                     trust_env=False,
-                )
-                logger.info(
-                    "[timing][llm_client] httpx.Client 최초 생성(프로세스당 1회) %8.1fms",
-                    (time.perf_counter() - t_init) * 1000,
                 )
 
     return _client_instance
@@ -77,6 +67,7 @@ def _client() -> httpx.Client:
 
 @atexit.register
 def _close_shared_client() -> None:
+    """프로세스 종료 시 커넥션을 정리한다 (best-effort; 실패해도 무시)."""
     if _client_instance is not None:
         try:
             _client_instance.close()
@@ -87,11 +78,12 @@ def _close_shared_client() -> None:
 def warm_up() -> None:
     """서버 시작 시(lifespan) 미리 호출해서 httpx.Client 생성 비용을 첫 요청 전에 미리 낸다.
     CHAT_API_BASE_URL이 아직 설정 안 된 환경(예: 채팅 기능 붙이기 전)에서도 서버 자체는
-    떠야 하므로, PROVIDER_NOT_CONFIGURED는 호출한 쪽에서 잡아서 경고만 남기고 넘어가면 된다."""
+    떠야 하므로, PROVIDER_NOT_CONFIGURED는 호출한 쪽에서 잡아서 넘어가면 된다."""
     _client()
 
 
 def _raise_from_error_response(res: httpx.Response) -> None:
+    """{error_code, message} 형태의 에러 응답을 ChatAPIError로 변환한다."""
     try:
         body = res.json()
         message = body.get("message") or _DEFAULT_MESSAGE
@@ -104,27 +96,22 @@ def _raise_from_error_response(res: httpx.Response) -> None:
 
 
 def _post(path: str, payload: dict) -> dict:
-    t0 = time.perf_counter()
-
+    # 주의: _client()가 반환하는 건 프로세스 전체가 공유하는 인스턴스이므로
+    # `with _client() as client:` 처럼 컨텍스트 매니저로 쓰면 요청이 끝날 때 그 클라이언트를
+    # close()해버려서 다음 요청이 깨진다. 그래서 그냥 변수로만 받아서 쓰고 닫지 않는다
+    # (종료는 위의 _close_shared_client에서 프로세스 종료 시 한 번만 처리).
     client = _client()
-    t1 = time.perf_counter()
-    logger.info("[timing][llm_client] httpx.Client 준비(재사용)  %8.1fms  (%s)", (t1 - t0) * 1000, path)
 
     try:
         res = client.post(path, json=payload)
-        t2 = time.perf_counter()
-        logger.info("[timing][llm_client] client.post 왕복(순수 네트워크) %8.1fms  (%s)", (t2 - t1) * 1000, path)
     except httpx.TimeoutException:
-        t_err = time.perf_counter()
-        logger.info("[timing][llm_client] TIMEOUT (%.1fms 후 예외)  (%s)", (t_err - t0) * 1000, path)
         raise ChatAPIError(
             "일시적인 오류입니다. 잠시 후 다시 시도해주세요.",
             status_code=504,
             error_code="LLM_TIMEOUT",
         )
     except httpx.RequestError:
-        t_err = time.perf_counter()
-        logger.info("[timing][llm_client] CONNECTION ERROR (%.1fms 후 예외)  (%s)", (t_err - t0) * 1000, path)
+        # 연결 자체가 안 되는 경우 (DNS 실패, 연결 거부 등)
         raise ChatAPIError(
             "AI 응답 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.",
             status_code=503,
@@ -135,18 +122,16 @@ def _post(path: str, payload: dict) -> dict:
         _raise_from_error_response(res)
 
     try:
-        data = res.json()
+        return res.json()
     except ValueError:
         raise ChatAPIError(_DEFAULT_MESSAGE, status_code=500, error_code="INTERNAL_ERROR")
 
-    t3 = time.perf_counter()
-    logger.info("[timing][llm_client] res.json() 파싱          %8.1fms  (%s)", (t3 - t2) * 1000, path)
-    logger.info("[timing][llm_client] _post TOTAL              %8.1fms  (%s)", (t3 - t0) * 1000, path)
-
-    return data
-
 
 def get_chat_completion(chatroom_id: str, message: str, history: list[dict] | None = None) -> dict:
+    """POST /v1/chat 호출.
+
+    반환: {"answer": str, "topic": str, "sources": list[dict], "rag_degraded": bool}
+    """
     payload = {"chatroom_id": chatroom_id, "message": message}
     if history:
         payload["history"] = history
@@ -162,11 +147,13 @@ def get_chat_completion(chatroom_id: str, message: str, history: list[dict] | No
 
 
 def generate_chatroom_name(message: str) -> str:
+    """POST /v1/chatroom-name 호출. 새 채팅방 첫 질문 때 한 번만 호출한다."""
     data = _post("/v1/chatroom-name", {"message": message})
     return data.get("name") or message[:30]
 
 
 def check_health() -> dict:
+    """GET /health 호출. 현재 어떤 라우트에서도 사용하지 않지만, 상태 점검용으로 미리 준비해둔다."""
     client = _client()
     try:
         res = client.get("/health")

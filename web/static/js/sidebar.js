@@ -43,7 +43,7 @@ document.addEventListener("click", async function (e) {
   if (!res.ok) return;
 
   if (window.location.pathname === `/chat/${chatroomId}`) {
-    window.location.href = "/main";
+    window.location.href = "/chat";
     return;
   }
 
